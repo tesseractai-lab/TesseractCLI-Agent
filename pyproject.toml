@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tesseractcli"
+version = "0.0.1"
+description = "TesseractCLI-Agent — a terminal-native, multi-provider coding agent."
+requires-python = ">=3.10"
+dependencies = [
+    "textual",
+    # "anthropic",
+    # "openai",
+    # "groq",
+    "pyyaml",
+]
+
+[project.scripts]
+tesseract = "tesseractcli.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["tesseractcli*"]
