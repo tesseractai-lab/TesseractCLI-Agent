@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.app import App
+from textual.binding import Binding
 
 from tesseractcli.ui.screens.placeholder import PlaceholderScreen
 from tesseractcli.ui.screens.welcome import WelcomeScreen
@@ -10,6 +11,12 @@ from tesseractcli.ui.screens.welcome import WelcomeScreen
 
 class TesseractApp(App):
     TITLE = "TesseractCLI"
+
+
+    BINDINGS = [
+    Binding("escape", "quit", "Exit"),
+    Binding("ctrl+c", "quit", "Exit"),
+]
 
     def on_mount(self) -> None:
         self.push_screen(WelcomeScreen())

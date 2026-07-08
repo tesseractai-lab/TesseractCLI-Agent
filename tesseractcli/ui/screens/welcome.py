@@ -7,6 +7,8 @@ from textual.app import ComposeResult
 from textual.containers import Center, Middle, Vertical
 from textual.screen import Screen
 from textual.widgets import Static
+from rich.panel import Panel
+from rich.align import Align
 
 from tesseractcli.ui.logo import (
     FALLBACK_TITLE,
@@ -55,13 +57,19 @@ class WelcomeScreen(Screen):
                         "[dim]press any key to continue[/dim]", id="hint"
                     )
 
-    def _render_logo(self) -> str:
-        """Use the full ASCII wordmark if the terminal is wide enough,
-        otherwise fall back to a plain bold label so nothing wraps/breaks.
-        """
-        if self.app.size.width >= LOGO_MIN_WIDTH:
-            return GRADIENT_LOGO
-        return FALLBACK_TITLE
+    def _render_logo(self):
+        logo = (
+            GRADIENT_LOGO
+            if self.app.size.width >= LOGO_MIN_WIDTH
+            else FALLBACK_TITLE
+        )
+
+        return Panel(
+            Align.center(logo),
+            border_style="#4dd8ff",
+            padding=(1, 2),
+            expand=False,
+    )
 
     def on_key(self, event: events.Key) -> None:
         # Any key advances past the splash screen.
