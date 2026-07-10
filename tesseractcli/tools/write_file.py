@@ -1,5 +1,5 @@
 """
-tesseractcli\tools\write_file.py
+tesseractcli/tools/write_file.py
 """
 
 import time

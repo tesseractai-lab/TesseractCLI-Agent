@@ -1,5 +1,5 @@
 """
-tesseractcli\models\tools_result.py
+tesseractcli.models.tools_result.py
 
 The shared contract every tool in this package returns: `ToolResult`.
 
@@ -7,7 +7,8 @@ The shared contract every tool in this package returns: `ToolResult`.
 """
 
 from pydantic import BaseModel, Field
-from typing import TypeAlias, TypedDict, NotRequired, List
+from typing import TypeAlias, List
+from typing_extensions import TypedDict, NotRequired
 
 
 # ---------------------------------------------------------------------------
