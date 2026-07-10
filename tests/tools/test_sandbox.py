@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tesseractcli.config.exceptions import SandboxViolationError
+from tesseractcli.models.exceptions import PathEscapesWorkspaceError
 from tesseractcli.tools.sandbox import Sandbox
 
 
@@ -31,7 +31,7 @@ def test_reject_path_traversal(tmp_path: Path):
 
     sandbox = Sandbox(workspace)
 
-    with pytest.raises(SandboxViolationError):
+    with pytest.raises(PathEscapesWorkspaceError):
         sandbox.resolve_workspace_path("../secret.txt")
 
 
@@ -49,7 +49,7 @@ def test_reject_absolute_path(tmp_path: Path):
     if not absolute.is_absolute():
         absolute = tmp_path.resolve()
 
-    with pytest.raises(SandboxViolationError):
+    with pytest.raises(PathEscapesWorkspaceError):
         sandbox.resolve_workspace_path(absolute)
 
 
@@ -84,5 +84,5 @@ def test_reject_symlink_escape(tmp_path: Path):
 
     sandbox = Sandbox(workspace)
 
-    with pytest.raises(SandboxViolationError):
+    with pytest.raises(PathEscapesWorkspaceError):
         sandbox.resolve_workspace_path("link/secret.txt")
