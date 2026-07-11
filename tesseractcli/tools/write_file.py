@@ -4,11 +4,12 @@ tesseractcli/tools/write_file.py
 
 import time
 from pathlib import Path
+from typing import Literal
 
-
-from tesseractcli.models import ToolResult, WriteFileMetadata
+from tesseractcli.models.tool_models import ToolResult, WriteFileMetadata, WriteFileArgs
 from tesseractcli.models.exceptions import PathEscapesWorkspaceError
 from tesseractcli.tools.sandbox import safe_open, resolve_in_workspace, atomic_write
+from tesseractcli.tools.registry import ToolRegistry
 
 def write_file(
         workspace_root: Path,
@@ -24,7 +25,7 @@ def write_file(
     try:
         if mode not in ("overwrite", "append"):
             return ToolResult(tool_name="write_file", success=False, output="",
-                               error=f"Invalid mode '{mode}', expected 'overwrite' or 'append'.")
+                                error=f"Invalid mode '{mode}', expected 'overwrite' or 'append'.")
 
         full_path = resolve_in_workspace(workspace_root, path)
 
@@ -52,6 +53,9 @@ def write_file(
         return ToolResult(tool_name="write_file", success=False, output="", error=str(e))
     except PermissionError:
         return ToolResult(tool_name="write_file", success=False, output="",
-                           error=f"Permission denied writing '{path}'.")
+                            error=f"Permission denied writing '{path}'.")
 
 
+
+def register(registry: ToolRegistry) -> None:
+    registry.add(name="write_file", schema=WriteFileArgs, fn=write_file)

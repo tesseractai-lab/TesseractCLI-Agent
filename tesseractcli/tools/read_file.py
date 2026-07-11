@@ -5,9 +5,10 @@ tesseractcli/tools/read_file.py
 import time
 from pathlib import Path
 
-from tesseractcli.models import ToolResult, ReadFileMetadata
+from tesseractcli.models.tool_models import ToolResult, ReadFileMetadata, ReadFileArgs 
 from tesseractcli.models.exceptions import FileNotFoundInWorkspace, PathEscapesWorkspaceError
 from tesseractcli.tools.sandbox import safe_open
+from tesseractcli.tools.registry import ToolRegistry
 
 MAX_LINES_WITHOUT_RANGE = 2000
 
@@ -61,3 +62,6 @@ def read_file(
     except UnicodeDecodeError:
         return ToolResult(tool_name="read_file", success=False, output="",
                            error=f"'{path}' is not a valid UTF-8 text file (binary?).")
+
+def register(registry: ToolRegistry) -> None:
+    registry.add(name="read_file", schema=ReadFileArgs, fn=read_file)

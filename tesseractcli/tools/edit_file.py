@@ -6,9 +6,11 @@ import time
 from pathlib import Path
 
 
-from tesseractcli.models import ToolResult, EditFileMetadata
+from tesseractcli.models.tool_models import ToolResult, EditFileMetadata, EditFileArgs
 from tesseractcli.models.exceptions import PathEscapesWorkspaceError, FileNotFoundInWorkspace
 from tesseractcli.tools.sandbox import safe_open, resolve_in_workspace, atomic_write
+from tesseractcli.tools.registry import ToolRegistry
+
 
 def edit_file(
         workspace_root: Path,
@@ -58,3 +60,6 @@ def edit_file(
     except PermissionError:
         return ToolResult(tool_name="edit_file", success=False, output="",
                            error=f"Permission denied editing '{path}'.")
+
+def register(registry: ToolRegistry) -> None:
+    registry.add(name="edit_file", schema=EditFileArgs, fn=edit_file)
