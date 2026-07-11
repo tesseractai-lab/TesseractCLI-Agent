@@ -7,7 +7,7 @@ The shared contract every tool in this package returns: `ToolResult`.
 """
 
 from pydantic import BaseModel, Field
-from typing import TypeAlias, List
+from typing import TypeAlias, List, Any 
 from typing_extensions import TypedDict, NotRequired
 
 
@@ -58,14 +58,25 @@ class RunCommandMetadata(BaseMetadata, total=False):
     command: list[str]
     exit_code: int
     timed_out: bool
-    blocked_by_policy: NotRequired[bool]
-    blocked_reason: NotRequired[str]
+    blocked_by_policy: bool
+    blocked_reason: str
+    stdout_truncated: bool
+    stderr_truncated: bool
+    side_effects: list[dict]
+    duration_ms: float
+
+class ListDirectoryMetadata(BaseMetadata, total=False):
+    path: str
+    item_count: int
+    duration_ms: float
 
 # ---------------------------------------------------------------------------
 # The ToolResult contract itself
 # ---------------------------------------------------------------------------
 
-ToolMetadata : TypeAlias =  ( RunCommandMetadata | ReadFileMetadata | WriteFileMetadata | EditFileMetadata)
+ToolMetadata : TypeAlias =  ( RunCommandMetadata | ReadFileMetadata 
+                                | WriteFileMetadata | EditFileMetadata 
+                                | ListDirectoryMetadata)
 
 
 class ToolResult(BaseModel):
@@ -79,5 +90,5 @@ class ToolResult(BaseModel):
     success: bool = Field(...)
     output: str
     error: str | None = None
-    metadata : ToolMetadata  = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
