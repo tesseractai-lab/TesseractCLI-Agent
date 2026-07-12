@@ -16,12 +16,11 @@ from tesseractcli.models import ToolResult
 from tesseractcli.models.tool_models import RunCommandMetadata, RunCommandArgs
 from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.tools.sandbox.command_policy import check_command
-
-DEFAULT_TIMEOUT_SECONDS = 30
-MAX_OUTPUT_CHARS = 10_000
+from tesseractcli.config.settings import get_settings as config
 
 
-def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> tuple[str, bool]:
+
+def _truncate(text: str, limit: int = config().MAX_OUTPUT_CHARS) -> tuple[str, bool]:
     if len(text) <= limit:
         return text, False
     return text[:limit] + f"\n... [truncated, {len(text) - limit} more characters]", True
@@ -30,7 +29,7 @@ def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> tuple[str, bool]:
 def run_command(
     workspace_root: Path,
     command: list[str],
-    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    timeout: int = config().DEFAULT_TIMEOUT_SECONDS,
 ) -> ToolResult:
     metadata: RunCommandMetadata = {"command": command}
 

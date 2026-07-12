@@ -9,8 +9,8 @@ from tesseractcli.models.tool_models import ToolResult, ReadFileMetadata, ReadFi
 from tesseractcli.models.exceptions import FileNotFoundInWorkspace, PathEscapesWorkspaceError
 from tesseractcli.tools.sandbox import safe_open
 from tesseractcli.tools.registry import ToolRegistry
+from tesseractcli.config.settings import get_settings as config
 
-MAX_LINES_WITHOUT_RANGE = 2000
 
 
 def read_file(
@@ -37,12 +37,12 @@ def read_file(
             selected = lines[lo:hi]
             metadata["truncated"] = hi < total_lines or lo > 0
             content = "".join(selected)
-        elif total_lines > MAX_LINES_WITHOUT_RANGE:
-            selected = lines[:MAX_LINES_WITHOUT_RANGE]
+        elif total_lines > config().MAX_LINES_WITHOUT_RANGE:
+            selected = lines[:config().MAX_LINES_WITHOUT_RANGE]
             metadata["truncated"] = True
             metadata["hint"] = (
                 f"File has {total_lines} lines, showing first "
-                f"{MAX_LINES_WITHOUT_RANGE}. Use start_line/end_line to see more."
+                f"{config().MAX_LINES_WITHOUT_RANGE}. Use start_line/end_line to see more."
             )
             content = "".join(selected)
         else:
