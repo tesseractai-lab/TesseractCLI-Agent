@@ -222,3 +222,7 @@ draft/
 docs/
 tesseractcli.egg-info/
 .github
+.env.*
+!.env.example
+!.env.dev.example
+!.env.prod.example
