@@ -42,6 +42,7 @@ MODE_ENV = BASE_DIR / f".env.{ENV_MODE.value}"
 
 
 class Settings(BaseSettings):
+
     ENV_MODE: EnvFileMode = Field(...)
 
     APP_NAME: str = Field(..., max_length=100)
@@ -60,13 +61,21 @@ class Settings(BaseSettings):
     DEFAULT_TIMEOUT_SECONDS: int = Field(...)
     MAX_OUTPUT_CHARS: int = Field(...)
 
+    # ===== Cloud provider API keys ====
+    CEREBRAS_API_KEY: str | None = None
+    GROQ_API_KEY: str | None = None
+    MISTRAL_API_KEY: str | None = None
+    HUGGINGFACE_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
+    TOGETHER_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
+    # --- Local GGUF provider ---
+    LOCAL_GGUF_MODEL_PATH: str | None = None
+    
     model_config = SettingsConfigDict(
-        env_file=(MAIN_ENV, MODE_ENV),  # المين أولاً، بعده mode-specific override
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-
-@lru_cache
+    env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
+    env_file_encoding="utf-8",
+    extra="ignore",)
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
