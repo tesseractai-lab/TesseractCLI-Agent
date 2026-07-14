@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     TOGETHER_API_KEY: str | None = None
     OPENAI_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
+    COHERE_API_KEY: str | None = None
+    OPENROUTER_API_KEY: str | None = None
+    GITHUB_MODELS_TOKEN: str | None = None
     # --- Local GGUF provider ---
     LOCAL_GGUF_MODEL_PATH: str | None = None
     
