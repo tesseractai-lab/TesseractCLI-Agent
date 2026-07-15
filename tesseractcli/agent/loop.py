@@ -88,7 +88,6 @@ def run_inner_loop(
     for _ in range(max_iterations):
         ai_message: AIMessage = bound_model.invoke(messages)
         messages.append(ai_message)
-        print(ai_message)
 
         if not ai_message.tool_calls:
             return ai_message.content
