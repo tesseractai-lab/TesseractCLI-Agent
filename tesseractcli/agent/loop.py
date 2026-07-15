@@ -92,8 +92,7 @@ def run_inner_loop(
         if not ai_message.tool_calls:
             return ai_message.content
 
-        # Handle every tool call the model asked for in this turn, not
-        # just the first - a single AIMessage can carry more than one
+
         # tool_calls entry, and each needs its own ToolMessage matched
         # back by that call's own id.
         for call in ai_message.tool_calls:
