@@ -1,5 +1,5 @@
 """
-command_policy.py
+tesseractcli/tools/sandbox/command_policy.py
 
 Responsibility: answer an open-ended, heuristic question — "is this command
 safe to run?" — as opposed to path_guard.py's deterministic geometric check.
