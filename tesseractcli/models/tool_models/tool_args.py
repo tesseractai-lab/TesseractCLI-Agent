@@ -33,4 +33,7 @@ class ListDirectoryArgs(BaseModel):
 
 
 class RunCommandArgs(BaseModel):
-    command: list[str] = Field(description="Command and arguments as a list, e.g. ['ls', '-la']")
+    command: list[str] = Field(description= """Argv list for the command, e.g. ['cat', 'path/to/file'].
+        Do NOT wrap in a shell interpreter (no 'bash -c', 'sh -c',
+        '-lc', etc.) — pass the target program and its arguments
+        directly as separate list items.""")

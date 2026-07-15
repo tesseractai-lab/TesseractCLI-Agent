@@ -76,8 +76,45 @@ class LLMDispatcher:
         retry/fallback-aware `ainvoke_with_fallback`."""
         routing = self._routing_for(task_name)
         provider = self._get_provider(routing.primary.provider)
+        logger.debug(
+        "get_llm_with_tools → task={} provider={} model={} ",
+        task_name, routing.primary.provider, routing.primary.model,
+        # len(tools), [t.get("name") for t in tools],
+    )
         return provider.get_model(
             routing.primary.model,
+            temperature=routing.temperature,
+            max_tokens=routing.max_tokens,
+        )
+
+    def get_llm_with_tools(self, tools: list[dict], task_name: str | None = None) -> BaseChatModel:
+        """Like get_llm(), but returns a tool-bound model - bind_tools()
+        happens before with_retry() inside the provider, since RunnableRetry
+        doesn't forward bind_tools()."""
+        routing = self._routing_for(task_name)
+        provider = self._get_provider(routing.primary.provider)
+
+        logger.debug(
+            "get_llm_with_tools → task={} provider={} model={} tool_count={} tools={}",
+            task_name,
+            routing.primary.provider,
+            routing.primary.model,
+            len(tools),
+            [t.get("name") for t in tools],
+        )
+        # Full schemas at TRACE-ish detail — descriptions are exactly
+        # what the model reasons over when deciding whether to call a
+        # tool, so log them too (not just the names).
+        # for t in tools:
+        #     logger.debug(
+        #         "  tool_def name={} description={!r}",
+        #         t.get("name"),
+        #         (t.get("description") or "")[:200],
+        #     )
+
+        return provider.get_model_with_tools(
+            routing.primary.model,
+            tools,
             temperature=routing.temperature,
             max_tokens=routing.max_tokens,
         )

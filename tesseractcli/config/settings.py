@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     GITHUB_MODELS_TOKEN: str | None = None
     # --- Local GGUF provider ---
     LOCAL_GGUF_MODEL_PATH: str | None = None
-    
+
+    #============Agent=============
+    INNER_LOOP_MAX_ITERATIONS : int = Field(...)
+
     model_config = SettingsConfigDict(
     env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
     env_file_encoding="utf-8",
