@@ -11,7 +11,7 @@ class TestOpenAIProvider(ProviderContractMixin):
     def test_does_not_set_custom_base_url(self, make_settings, mocker):
         patched = mocker.patch(self.patch_target)
         provider = self._make_provider(make_settings, OPENAI_API_KEY="test-key")
-        provider.get_model(self.model_name)
+        provider._get_model(self.model_name)
 
         _, kwargs = patched.call_args
         assert "base_url" not in kwargs
