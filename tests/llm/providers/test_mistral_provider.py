@@ -11,7 +11,7 @@ class TestMistralProvider(ProviderContractMixin):
     def test_uses_mistral_base_url(self, make_settings, mocker):
         patched = mocker.patch(self.patch_target)
         provider = self._make_provider(make_settings, MISTRAL_API_KEY="test-key")
-        provider.get_model(self.model_name)
+        provider._get_model(self.model_name)
 
         _, kwargs = patched.call_args
         assert kwargs["base_url"] == "https://api.mistral.ai/v1"

@@ -40,11 +40,11 @@ class ProviderContractMixin:
     def test_missing_api_key_raises_value_error(self, make_settings):
         provider = self._make_provider(make_settings)  # no key set
         with pytest.raises(ValueError, match=self.env_var_name):
-            provider.get_model(self.model_name)
+            provider._get_model(self.model_name)
 
     def test_get_model_returns_invokable_runnable(self, make_settings, mocker):
         fake_chat_model = mocker.MagicMock(spec=BaseChatModel)
-        # with_retry() is what get_model() actually returns to the caller,
+        # with_retry() is what _get_model() actually returns to the caller,
         # so the mock needs to survive that wrapping too.
         fake_chat_model.with_retry.return_value = mocker.MagicMock(
             invoke=mocker.MagicMock(), stream=mocker.MagicMock()
@@ -52,7 +52,7 @@ class ProviderContractMixin:
         mocker.patch(self.patch_target, return_value=fake_chat_model)
 
         provider = self._make_provider(make_settings, **{self.env_var_name: "test-key"})
-        result = provider.get_model(self.model_name)
+        result = provider._get_model(self.model_name)
 
         assert hasattr(result, "invoke")
         assert hasattr(result, "stream")
@@ -63,8 +63,8 @@ class ProviderContractMixin:
         mocker.patch(self.patch_target, return_value=fake_chat_model)
 
         provider = self._make_provider(make_settings, **{self.env_var_name: "test-key"})
-        first = provider.get_model(self.model_name)
-        second = provider.get_model(self.model_name)
+        first = provider._get_model(self.model_name)
+        second = provider._get_model(self.model_name)
 
         assert first is second
 

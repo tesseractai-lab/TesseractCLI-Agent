@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     LOCAL_GGUF_MODEL_PATH: str | None = None
 
     #============Agent=============
-    INNER_LOOP_MAX_ITERATIONS : int = Field(...)
+    INNER_LOOP_MAX_ITERATIONS : int = Field(default=10)
 
     model_config = SettingsConfigDict(
     env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
