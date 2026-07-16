@@ -19,6 +19,7 @@ class BaseLLMProvider(ABC):
     DEFAULT_MAX_RETRIES: int = 3
     DEFAULT_RATE_LIMIT_RPS: float | None = None
 
+
     def __init__(self) -> None:
         self.config = get_settings()
         self._cache: dict[str, BaseChatModel] = {}

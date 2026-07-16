@@ -20,7 +20,7 @@ class RoutingStep (BaseModel):
 
 
 class RoutingConfig(BaseModel):
-    primary: RoutingStep 
+    primary: RoutingStep
     fallbacks: list[RoutingStep ] = []
     temperature: float = 0.3
     max_tokens: int = 4096
@@ -32,7 +32,7 @@ def default_main_model() -> RoutingConfig:
     tier), Cerebras as backup - a starting point, not a measured
     choice; swap freely once real usage data exists."""
     return RoutingConfig(
-        primary=RoutingStep (provider="groq", model="llama-3.1-70b-versatile"),
+        primary=RoutingStep (provider="groq", model="openai/gpt-oss-20b"),
         fallbacks=[RoutingStep (provider="cerebras", model="llama3.1-8b")],
     )
 
@@ -50,9 +50,9 @@ def default_task_routing() -> dict[str, RoutingConfig]:
     primary=RoutingStep(provider="mistral", model="mistral-large-latest"),
     fallbacks=[
         RoutingStep(provider="cerebras", model="gpt-oss-120b"),
-        RoutingStep(provider="huggingface", model="Qwen/Qwen2.5-72B-Instruct"),  
-        RoutingStep(provider="groq", model="llama-3.1-8b-instant"),  
-        RoutingStep(provider="together", model="Qwen2.5-Coder-32B-Instruct"),  
+        RoutingStep(provider="huggingface", model="Qwen/Qwen2.5-72B-Instruct"),
+        RoutingStep(provider="groq", model="llama-3.1-8b-instant"),
+        RoutingStep(provider="together", model="Qwen2.5-Coder-32B-Instruct"),
     ],
     temperature=0.1,
     max_tokens=8192,
@@ -60,7 +60,7 @@ def default_task_routing() -> dict[str, RoutingConfig]:
         "summarization": RoutingConfig(
             primary=RoutingStep(provider="cerebras", model="llama3.1-8b"),
             fallbacks=[
-                RoutingStep(provider="groq", model="llama-3.1-8b-instant"),
+                RoutingStep(provider="groq", model="openai/gpt-oss-20b"),
                 RoutingStep(provider="openrouter", model="meta-llama/llama-3.3-70b-instruct:free"),
             ],
             temperature=0.2,

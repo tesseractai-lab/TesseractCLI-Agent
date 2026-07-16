@@ -23,6 +23,11 @@ class ToolRegistry:
         """ All the plans for that were tracked for the LLM Provider. """
         return [schema for schema, _ in self._tools.values()]
 
+    def tool_specs(self) -> list[tuple[str, type[BaseModel]]]:
+        """Name + schema pairs, for building tool definitions that keep
+        the LLM-facing tool name in sync with the registry key."""
+        return [(name, schema) for name, (schema, _) in self._tools.items()]
+
     def dispatch(self, name: str, raw_args: dict, workspace_root: Path) -> ToolResult:
         """ "It is called when the LLM returns a tool_use request."""
         if name not in self._tools:
