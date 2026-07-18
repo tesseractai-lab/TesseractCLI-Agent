@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str | None = None
     OPENROUTER_API_KEY: str | None = None
     GITHUB_MODELS_TOKEN: str | None = None
+    GOOGLE_API_KEY: str | None = None
     # --- Local GGUF provider ---
     LOCAL_GGUF_MODEL_PATH: str | None = None
 
