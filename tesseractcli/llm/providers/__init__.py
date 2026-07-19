@@ -10,6 +10,7 @@ from tesseractcli.llm.providers.mistral_provider import MistralProvider
 from tesseractcli.llm.providers.openai_provider import OpenAIProvider
 from tesseractcli.llm.providers.openrouter_provider import OpenRouterProvider
 from tesseractcli.llm.providers.together_provider import TogetherProvider
+from tesseractcli.llm.providers.google_provider import GoogleProvider
 
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "OpenAIProvider",
     "OpenRouterProvider",
     "TogetherProvider",
+    "GoogleProvider",
 ]
