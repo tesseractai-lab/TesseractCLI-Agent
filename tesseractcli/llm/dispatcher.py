@@ -13,7 +13,7 @@ from tesseractcli.config.logger import logger
 from tesseractcli.llm.providers import(AnthropicProvider, BaseLLMProvider, CerebrasProvider,
                                     CohereProvider, GitHubModelsProvider, GroqProvider, HuggingFaceProvider,
                                     LocalGGUFProvider, MistralProvider, OpenAIProvider, OpenRouterProvider,
-                                    TogetherProvider)
+                                    TogetherProvider,GoogleProvider)
 from tesseractcli.llm.routing import RoutingConfig, RoutingTable, get_routing_table
 
 _RATE_LIMIT_SIZE_MARKERS = (
@@ -46,6 +46,7 @@ class LLMDispatcher:
         "openrouter": OpenRouterProvider,
         "github_models": GitHubModelsProvider,
         "local_gguf": LocalGGUFProvider,
+        "google": GoogleProvider,
     }
 
     def __init__(self, routing_table: RoutingTable | None = None) -> None:
