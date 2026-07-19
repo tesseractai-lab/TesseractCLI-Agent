@@ -9,12 +9,13 @@ from __future__ import annotations
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 
+from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.logger import logger
 from tesseractcli.llm.providers import(AnthropicProvider, BaseLLMProvider, CerebrasProvider,
                                     CohereProvider, GitHubModelsProvider, GroqProvider, HuggingFaceProvider,
                                     LocalGGUFProvider, MistralProvider, OpenAIProvider, OpenRouterProvider,
                                     TogetherProvider,GoogleProvider)
-from tesseractcli.llm.routing import RoutingConfig, RoutingTable, get_routing_table
+from tesseractcli.llm.routing import RoutingResolver, get_routing_resolver
 
 _RATE_LIMIT_SIZE_MARKERS = (
     "rate limit",
@@ -29,9 +30,9 @@ _RATE_LIMIT_SIZE_MARKERS = (
 
 
 class LLMDispatcher:
-    """Resolves a task name to a routing chain, and walks primary ->
-    fallbacks, truncating and retrying a step once if the failure looks
-    like a rate-limit/size problem rather than giving up on that step
+    """Resolves a pack name to a ModelPack, and walks pool -> fallback,
+    truncating and retrying a step once if the failure looks like a
+    rate-limit/size problem rather than giving up on that step
     outright."""
 
     _PROVIDER_REGISTRY: dict[str, type[BaseLLMProvider]] = {
@@ -49,8 +50,8 @@ class LLMDispatcher:
         "google": GoogleProvider,
     }
 
-    def __init__(self, routing_table: RoutingTable | None = None) -> None:
-        self.routing_table = routing_table or get_routing_table()
+    def __init__(self, resolver: RoutingResolver | None = None) -> None:
+        self.resolver = resolver or get_routing_resolver()
         self._providers: dict[str, BaseLLMProvider] = {}
 
     def _get_provider(self, name: str) -> BaseLLMProvider:
@@ -63,26 +64,27 @@ class LLMDispatcher:
             self._providers[name] = self._PROVIDER_REGISTRY[name]()
         return self._providers[name]
 
-    def _routing_for(self, task_name: str | None) -> RoutingConfig:
-        return self.routing_table.resolve(task_name)
+    def _pack_for(self, pack_name: str | None) -> ModelPack:
+        return self.resolver.resolve(pack_name)
 
-    def get_llm(self, task_name: str | None = None) -> BaseChatModel:
+    def get_llm(self, pack_name: str | None = None) -> BaseChatModel:
         """Primary-only getter, no fallback walk - for callers that want
         a plain model handle (e.g. for `.bind_tools()`) rather than the
         retry/fallback-aware `ainvoke_with_fallback`."""
-        routing = self._routing_for(task_name)
-        provider = self._get_provider(routing.primary.provider)
+        pack = self._pack_for(pack_name)
+        primary = self._primary_of(pack, pack_name)
+        provider = self._get_provider(primary.provider)
         logger.debug(
-            "get_llm → task={} provider={} model={}",
-            task_name, routing.primary.provider, routing.primary.model,
+            "get_llm → pack={} provider={} model={}",
+            pack_name, primary.provider, primary.model,
         )
         return provider.get_model_safe(
-            routing.primary.model,
-            temperature=routing.temperature,
-            max_tokens=routing.max_tokens,
+            primary.model,
+            temperature=pack.temperature,
+            max_tokens=pack.max_tokens,
         )
 
-    def get_llm_with_tools(self, tools: list[dict], task_name: str | None = None) -> BaseChatModel:
+    def get_llm_with_tools(self, tools: list[dict], pack_name: str | None = None) -> BaseChatModel:
         """Like get_llm(), but returns a tool-bound model - bind_tools()
         happens before with_retry() inside the provider, since RunnableRetry
         doesn't forward bind_tools(). NOTE: this has no fallback/rate-limit
@@ -90,47 +92,48 @@ class LLMDispatcher:
         the full resilience path. This stays around for callers that only
         need a raw bound model handle (e.g. streaming) without invoking it
         through the dispatcher."""
-        routing = self._routing_for(task_name)
-        provider = self._get_provider(routing.primary.provider)
+        pack = self._pack_for(pack_name)
+        primary = self._primary_of(pack, pack_name)
+        provider = self._get_provider(primary.provider)
 
         logger.debug(
-            "get_llm_with_tools → task={} provider={} model={} tool_count={} tools={}",
-            task_name,
-            routing.primary.provider,
-            routing.primary.model,
+            "get_llm_with_tools → pack={} provider={} model={} tool_count={} tools={}",
+            pack_name,
+            primary.provider,
+            primary.model,
             len(tools),
             [t.get("name") for t in tools],
         )
 
         return provider.get_model_with_tools_safe(
-            routing.primary.model,
+            primary.model,
             tools,
-            temperature=routing.temperature,
-            max_tokens=routing.max_tokens,
+            temperature=pack.temperature,
+            max_tokens=pack.max_tokens,
         )
 
     async def ainvoke_with_fallback(
         self,
         messages: list[BaseMessage],
         tools: list[dict] | None = None,
-        task_name: str | None = None,
+        pack_name: str | None = None,
     ) -> BaseMessage:
-        """Try primary, then each fallback in order. Within a single
-        step: `.with_retry()` (already baked into every provider's
-        get_model/get_model_with_tools) absorbs transient failures. If
-        the step still fails and it looks rate-limit/size-shaped,
-        truncate the last message and retry that SAME step once before
-        moving to the next fallback. Raises RuntimeError only if every
-        step is exhausted.
+        """Try every model in the pack's pool, then every model in its
+        fallback list, in order. Within a single step: `.with_retry()`
+        (already baked into every provider's get_model/get_model_with_tools)
+        absorbs transient failures. If the step still fails and it looks
+        rate-limit/size-shaped, truncate the last message and retry that
+        SAME step once before moving to the next one. Raises RuntimeError
+        only if every step is exhausted.
 
-        Pass `tools` to get a tool-bound model at every step (primary AND
-        fallbacks) - this is the single entry point for tool-calling +
+        Pass `tools` to get a tool-bound model at every step (pool AND
+        fallback) - this is the single entry point for tool-calling +
         fallback + rate-limit resilience combined. Returns the full
         BaseMessage (not just .content), since tool calls live on
         `.tool_calls`, not in `.content`.
         """
-        routing = self._routing_for(task_name)
-        steps = [routing.primary, *routing.fallbacks]
+        pack = self._pack_for(pack_name)
+        steps = [*pack.pool, *pack.fallback]
         last_error: Exception | None = None
 
         for step in steps:
@@ -140,14 +143,14 @@ class LLMDispatcher:
                 model = provider.get_model_with_tools_safe(
                     step.model,
                     tools,
-                    temperature=routing.temperature,
-                    max_tokens=routing.max_tokens,
+                    temperature=pack.temperature,
+                    max_tokens=pack.max_tokens,
                 )
             else:
                 model = provider.get_model_safe(
                     step.model,
-                    temperature=routing.temperature,
-                    max_tokens=routing.max_tokens,
+                    temperature=pack.temperature,
+                    max_tokens=pack.max_tokens,
                 )
 
             if model is None:
@@ -186,8 +189,16 @@ class LLMDispatcher:
                     continue
 
         raise RuntimeError(
-            f"All routing steps exhausted for task '{task_name}'"
+            f"All routing steps exhausted for pack '{pack_name}'"
         ) from last_error
+
+    @staticmethod
+    def _primary_of(pack: ModelPack, pack_name: str | None) -> ModelConfig:
+        """First model in the pack's pool - used by the single-model
+        getters (get_llm / get_llm_with_tools), which don't walk fallback."""
+        if not pack.pool:
+            raise ValueError(f"Pack '{pack_name}' has an empty pool.")
+        return pack.pool[0]
 
     @staticmethod
     def _looks_like_rate_limit_error(error: Exception) -> bool:
