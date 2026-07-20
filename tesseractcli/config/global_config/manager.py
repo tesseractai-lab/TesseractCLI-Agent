@@ -62,6 +62,8 @@ _DIR_MODE: Final[int] = 0o700
 # in ConfigManager.get().
 _MISSING: Final[object] = object()
 
+CONFIG_DIR = Path(__file__).parents[2] / "cli_config"
+
 
 class ConfigManager:
     """Single source of truth for reading, writing, and mutating configuration.
@@ -86,7 +88,7 @@ class ConfigManager:
 
     def __init__(
         self,
-        config_dir: str | Path,
+        config_dir: str | Path = CONFIG_DIR,
         *,
         config_filename: str = GLOBAL_CONFIG_FILENAME,
         default_config_path: str | Path | None = None,
