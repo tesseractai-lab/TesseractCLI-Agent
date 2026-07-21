@@ -12,21 +12,29 @@ from tesseractcli.models import ToolResult
 
 @dataclass
 class ToolRegistry:
-    _tools: dict[str, tuple[type[BaseModel], Callable]] = field(default_factory=dict)
+    _tools: dict[str, tuple[type[BaseModel], Callable, bool]] = field(default_factory=dict)
 
-    def add(self, name: str, schema: type[BaseModel], fn: Callable) -> None:
+    def add(self, name: str, schema: type[BaseModel], fn: Callable, needs_approval: bool = True) -> None:
         if name in self._tools:
             raise ValueError(f"Tool '{name}' is already registered.")
-        self._tools[name] = (schema, fn)
+        self._tools[name] = (schema, fn, needs_approval)
 
     def schemas(self) -> list[type[BaseModel]]:
         """ All the plans for that were tracked for the LLM Provider. """
-        return [schema for schema, _ in self._tools.values()]
+        return [schema for schema, _, _ in self._tools.values()]
 
     def tool_specs(self) -> list[tuple[str, type[BaseModel]]]:
         """Name + schema pairs, for building tool definitions that keep
         the LLM-facing tool name in sync with the registry key."""
-        return [(name, schema) for name, (schema, _) in self._tools.items()]
+        return [(name, schema) for name, (schema, _, _) in self._tools.items()]
+
+    def needs_approval(self, name: str) -> bool:
+        """Used by the approval flow to decide whether to prompt the user.
+        Unknown tool names fail safe (treated as needing approval)."""
+        if name not in self._tools:
+            return True
+        _, _, needs = self._tools[name]
+        return needs
 
     def dispatch(self, name: str, raw_args: dict, workspace_root: Path) -> ToolResult:
         """ "It is called when the LLM returns a tool_use request."""
@@ -34,7 +42,7 @@ class ToolRegistry:
             return ToolResult(tool_name=name, success=False, output="",
                                 error=f"Unknown tool '{name}'.")
 
-        schema, fn = self._tools[name]
+        schema, fn, _ = self._tools[name]
 
         try:
             validated = schema(**raw_args)
@@ -43,4 +51,3 @@ class ToolRegistry:
                                 error=f"Invalid arguments for '{name}': {e}")
 
         return fn(workspace_root=workspace_root, **validated.model_dump())
-
