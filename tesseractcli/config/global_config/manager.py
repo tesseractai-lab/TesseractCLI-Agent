@@ -62,7 +62,7 @@ _DIR_MODE: Final[int] = 0o700
 # in ConfigManager.get().
 _MISSING: Final[object] = object()
 
-CONFIG_DIR = Path(__file__).parents[3] / "cli_config"
+CONFIG_DIR = Path(__file__).parents[3] / "app_config"
 
 
 class ConfigManager:
