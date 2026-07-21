@@ -1,16 +1,16 @@
 schema_version: "1.0"
 
 providers:
-  main:
+  main_pack:
     pool:
-      - provider: anthropic
-        model: claude-sonnet-4-6
+      - provider: groq
+        model: qwen/qwen3.6-27b
     fallback:
-      - provider: openai
-        model: gpt-4o
+      - provider: cerebras
+        model: llama3.1-8b
     max_tokens: 4096
     temperature: 0.7
-  secondary:
+  secondary_pack:
     pool:
       - provider: openai
         model: gpt-4o-mini
