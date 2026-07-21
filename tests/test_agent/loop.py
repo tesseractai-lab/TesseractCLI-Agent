@@ -31,7 +31,6 @@ stages = [
 for expected_tool, prompt in stages:
     print(f"\n{'=' * 60}\nUSER (expecting {expected_tool}): {prompt}\n{'=' * 60}")
     reply = run_inner_loop(
-        task_name='test_loop',
         user_input=prompt,
         messages=messages,
         registry=registry,

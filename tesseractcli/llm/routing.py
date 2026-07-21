@@ -73,6 +73,6 @@ class RoutingResolver:
 @lru_cache(maxsize=1)
 def get_routing_resolver() -> RoutingResolver:
     """Process-wide cached resolver, backed by the on-disk global config."""
-    manager = ConfigManager(config_dir="~/.tesseractcli")
+    manager = ConfigManager()
     manager.load()
     return RoutingResolver(manager)

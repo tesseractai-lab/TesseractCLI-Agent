@@ -18,7 +18,7 @@ def edit_file(
         old_str: str,
         new_str: str,
 ) -> ToolResult:
-    
+
     started = time.monotonic()
     metadata: EditFileMetadata = {"path": path}
 
@@ -46,7 +46,7 @@ def edit_file(
             )
 
         updated = original.replace(old_str, new_str, 1)
-        atomic_write(full_path, updated)
+        atomic_write(full_path, updated,workspace_root=workspace_root)
 
         metadata["chars_replaced"] = len(old_str)
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
@@ -62,4 +62,4 @@ def edit_file(
                            error=f"Permission denied editing '{path}'.")
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="edit_file", schema=EditFileArgs, fn=edit_file)
+    registry.add(name="edit_file", schema=EditFileArgs, fn=edit_file,needs_approval=True)

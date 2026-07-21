@@ -69,3 +69,6 @@ class ConfigModelError(ConfigError):
     Examples include removing a model that is not present in a pack's
     pool, or referencing an unknown pack while managing its models.
     """
+
+class SensitiveFileBlocked(Exception):
+    """Raised when a path matches a sensitive-file denylist pattern."""
