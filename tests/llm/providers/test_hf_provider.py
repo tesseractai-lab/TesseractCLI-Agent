@@ -11,7 +11,7 @@ class TestHuggingFaceProvider(ProviderContractMixin):
     def test_uses_hf_router_base_url(self, make_settings, mocker):
         patched = mocker.patch(self.patch_target)
         provider = self._make_provider(make_settings, HUGGINGFACE_API_KEY="test-key")
-        provider.get_model(self.model_name)
+        provider._get_model(self.model_name)
 
         _, kwargs = patched.call_args
         assert kwargs["base_url"] == "https://router.huggingface.co/v1"

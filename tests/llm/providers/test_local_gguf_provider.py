@@ -40,13 +40,13 @@ class TestLocalGGUFProvider:
         provider = LocalGGUFProvider()
         provider.config = make_settings()  # no LOCAL_GGUF_MODEL_PATH
         with pytest.raises(ValueError, match="LOCAL_GGUF_MODEL_PATH"):
-            provider.get_model("")
+            provider._get_model("")
 
     def test_nonexistent_file_raises_file_not_found(self, make_settings):
         provider = LocalGGUFProvider()
         provider.config = make_settings()
         with pytest.raises(FileNotFoundError):
-            provider.get_model("/tmp/definitely-not-a-real-model.gguf")
+            provider._get_model("/tmp/definitely-not-a-real-model.gguf")
 
     def test_falls_back_to_settings_path(
         self, make_settings, fake_gguf_file, stub_llama_cpp_module
@@ -54,7 +54,7 @@ class TestLocalGGUFProvider:
         provider = LocalGGUFProvider()
         provider.config = make_settings(LOCAL_GGUF_MODEL_PATH=fake_gguf_file)
 
-        result = provider.get_model("")  # empty -> falls back to settings
+        result = provider._get_model("")  # empty -> falls back to settings
 
         assert hasattr(result, "invoke")
         stub_llama_cpp_module.assert_called_once_with(model_path=fake_gguf_file)
@@ -65,7 +65,7 @@ class TestLocalGGUFProvider:
         provider = LocalGGUFProvider()
         provider.config = make_settings()  # no default path set
 
-        provider.get_model(fake_gguf_file)
+        provider._get_model(fake_gguf_file)
 
         stub_llama_cpp_module.assert_called_once_with(model_path=fake_gguf_file)
 
@@ -78,4 +78,4 @@ class TestLocalGGUFProvider:
         provider.config = make_settings()
 
         with pytest.raises(ImportError, match="llama-cpp-python"):
-            provider.get_model(fake_gguf_file)
+            provider._get_model(fake_gguf_file)
