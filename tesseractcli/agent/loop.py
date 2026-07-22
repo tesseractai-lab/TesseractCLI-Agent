@@ -9,14 +9,36 @@ repeats until the model replies with no tool_calls (final answer) or
 until INNER_LOOP_MAX_ITERATIONS is hit.
 
 This is NOT the outer session loop (waiting on repeated user input) -
-that's a separate, later concern (likely owned by the TUI). This
-function is called once per user message; `messages` is passed in and
-mutated in place so the caller keeps full history across calls.
+that's a separate, later concern (owned by the TUI / CLI entrypoint).
+This function is called once per user message; `messages` is passed in
+and mutated in place so the caller keeps full history across calls.
+
+Step 6 change (Textual integration): this is now `async def`.
+
+- Model calls go through `dispatcher.ainvoke_with_fallback(...)` instead
+  of a single bound model's `.invoke()`. This is a deliberate change
+  from the Step 5 version (which cached one `bound_model` and called
+  `.invoke()` per iteration): `ainvoke_with_fallback` re-resolves the
+  pack's pool + fallback chain and does rate-limit/size-aware retry on
+  every call, which is the "full resilience path" it's built for. The
+  cost is re-doing pack resolution each iteration; the provider layer's
+  own model cache (`get_model_safe`) means this doesn't rebuild
+  LangChain client objects each time, so the overhead is small.
+
+- Tool approval is now injected via `approve_fn` (async callable)
+  instead of calling `approve_tool_call` directly. The default
+  (`_default_approve_fn`) preserves the exact terminal behavior from
+  Step 5 (print preview + blocking `input()`), just run in a worker
+  thread via `asyncio.to_thread` so it never blocks the event loop -
+  this matters even for terminal usage now that the function is async,
+  and it's what lets the Textual UI swap in its own modal-based
+  `approve_fn` with zero changes to this file.
 """
 from __future__ import annotations
 
-import json
+import asyncio
 from pathlib import Path
+from typing import Awaitable, Callable, TypeAlias
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
@@ -24,7 +46,11 @@ from tesseractcli.config.logger import logger
 from tesseractcli.config.settings import get_settings
 from tesseractcli.llm.dispatcher import LLMDispatcher
 from tesseractcli.models.tool_models.tools_result import ToolResult
+from tesseractcli.tools.approval import approve_tool_call
 from tesseractcli.tools.registry import ToolRegistry
+
+# (tool_name, tool_args, workspace_root) -> approved?
+ApproveFn : TypeAlias = Callable[[str, dict, Path], Awaitable[bool]]
 
 
 def _build_tool_defs(registry: ToolRegistry) -> list[dict]:
@@ -53,45 +79,48 @@ def _format_tool_result(result: ToolResult) -> str:
     return f"ERROR: {result.error}"
 
 
-def _approve(tool_name: str, args: dict) -> bool:
-    """Placeholder approval gate. Deliberately isolated in its own
-    function (not inlined in the loop body) so swapping this for the
-    real Textual approval UI later means changing this function only -
-    the loop body doesn't need to know how approval is obtained."""
-    print(f"\n[tool_use] {tool_name}({json.dumps(args, ensure_ascii=False)})")
-    answer = input("approve? y/n: ").strip().lower()
-    logger.debug(f"[tool]: {tool_name} ask approve to run ({json.dumps(args, ensure_ascii=False)}) and user say [{answer}]")
-    return answer == "y"
+async def _default_approve_fn(tool_name: str, tool_args: dict, workspace_root: Path) -> bool:
+    """Terminal fallback approve_fn - identical behavior to Step 5
+    (renders a preview, blocks on `input("approve? (y/n): ")`), just
+    run off the event loop thread so `await approve_fn(...)` is always
+    safe to call from async code, terminal or Textual alike."""
+    return await asyncio.to_thread(approve_tool_call, tool_name, tool_args, workspace_root)
 
 
-
-def run_inner_loop(
+async def run_inner_loop(
     user_input: str,
     messages: list[BaseMessage],
     registry: ToolRegistry,
     dispatcher: LLMDispatcher,
     workspace_root: Path,
-    task_name: str | None = None,
+    name_pack: str | None = "main_pack",
+    approve_fn: ApproveFn = _default_approve_fn,
 ) -> str:
     """Runs one full agent turn for `user_input`. Returns the model's
     final text reply. Mutates `messages` in place (appends the human
     message, every AI message, and every tool result) so the caller can
-    pass the same list back in on the next call for continuity."""
+    pass the same list back in on the next call for continuity.
+
+    `name_pack` is a routing pack name (e.g. "main_pack", "second_pack",
+    "third_pack" - see `llm/routing.py`'s RoutingResolver), NOT a raw
+    provider/model pair. `approve_fn` defaults to the terminal prompt;
+    pass a UI-backed one (e.g. Textual's modal) to override it.
+    """
     settings = get_settings()
     max_iterations = settings.INNER_LOOP_MAX_ITERATIONS
 
     messages.append(HumanMessage(content=user_input))
 
     tool_defs = _build_tool_defs(registry)
-    bound_model = dispatcher.get_llm_with_tools(tool_defs, task_name)
 
     for _ in range(max_iterations):
-        ai_message: AIMessage = bound_model.invoke(messages)
+        ai_message: AIMessage = await dispatcher.ainvoke_with_fallback(
+            messages, tools=tool_defs, pack_name=name_pack
+        )
         messages.append(ai_message)
 
         if not ai_message.tool_calls:
             return ai_message.content
-
 
         # tool_calls entry, and each needs its own ToolMessage matched
         # back by that call's own id.
@@ -100,8 +129,15 @@ def run_inner_loop(
             args = call["args"]
             call_id = call["id"]
 
-# here customize approve logic
-            if _approve(name, args):
+            # Read-only tools (needs_approval=False in the registry)
+            # skip the prompt entirely - approve_fn is never even
+            # called for them.
+            if registry.needs_approval(name):
+                approved = await approve_fn(name, args, workspace_root)
+            else:
+                approved = True
+
+            if approved:
                 result = registry.dispatch(name, args, workspace_root)
             else:
                 result = ToolResult(
