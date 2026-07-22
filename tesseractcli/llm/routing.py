@@ -1,91 +1,78 @@
 """
 tesseractcli/llm/routing.py
-Domain model for "how do we pick a model for a given task" - owned
+Domain logic for "how do we pick a model for a given pack" - owned
 entirely by the LLM/agent layer. Deliberately independent from
-Settings: Settings is flat, env-backed config; routing is structured
-config with its own lifecycle (later: load/save to routing.json
-without touching env parsing at all). The TUI settings screen and the
-dispatcher both *consume* RoutingTable; neither owns it.
+Settings: Settings is flat, env-backed config; routing here just
+resolves a pack name against the structured config already owned by
+`config.ConfigManager` (providers/packs/models loaded from
+global_config.yaml). The TUI settings screen and the dispatcher both
+*consume* RoutingResolver; neither owns the pack data itself -
+ConfigManager does.
+
+This replaces the old RoutingStep/RoutingConfig/RoutingTable classes:
+those duplicated a schema (provider + model, primary + fallbacks) that
+now lives in config.models (ModelConfig, ModelPack). Resolving a task
+now means resolving a *pack name* straight to a ModelPack, instead of
+looking up a hand-maintained in-memory task table.
 """
 from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import BaseModel, Field
+from tesseractcli.models.exceptions import ConfigPackError
+from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
+from tesseractcli.config.global_config.manager import ConfigManager
+
+# Used when the requested pack doesn't exist (e.g. an unconfigured
+# task name, or a typo) - "main" is guaranteed to exist because it
+# ships in default_config.yaml.
+DEFAULT_PACK_NAME = "main"
 
 
-class RoutingStep (BaseModel):
-    provider: str
-    model: str
+class RoutingResolver:
+    """Resolves a pack name to its ModelPack (models + provider info).
 
+    Construct directly (e.g. in tests, with an isolated ConfigManager),
+    or use get_routing_resolver() for the process-wide cached instance.
+    """
 
-class RoutingConfig(BaseModel):
-    primary: RoutingStep
-    fallbacks: list[RoutingStep ] = []
-    temperature: float = 0.3
-    max_tokens: int = 4096
+    def __init__(
+        self, manager: ConfigManager, *, default_pack: str = DEFAULT_PACK_NAME
+    ) -> None:
+        self._manager = manager
+        self._default_pack = default_pack
 
+    def resolve(self, pack_name: str | None) -> ModelPack:
+        """Return the ModelPack for `pack_name`.
 
-def default_main_model() -> RoutingConfig:
-    """Fallback-of-last-resort routing, used when a task isn't present
-    in RoutingTable.default_routing. Groq first (fast, generous free
-    tier), Cerebras as backup - a starting point, not a measured
-    choice; swap freely once real usage data exists."""
-    return RoutingConfig(
-        primary=RoutingStep (provider="groq", model="openai/gpt-oss-20b"),
-        fallbacks=[RoutingStep (provider="cerebras", model="llama3.1-8b")],
-    )
+        Falls back to the default pack ("main") when `pack_name` is
+        None or refers to a pack that doesn't exist in the config.
+        """
+        name = pack_name or self._default_pack
+        try:
+            return self._manager.packs.get_pack(name)
+        except ConfigPackError:
+            return self._manager.packs.get_pack(self._default_pack)
 
+    def resolve_primary(self, pack_name: str | None) -> ModelConfig:
+        """Return just the first (primary) provider/model in the pack's pool.
 
-def default_task_routing() -> dict[str, RoutingConfig]:
-    """Ships with a real per-task routing table out of the box - each
-    task gets its own model + context sizing, matching the original
-    design intent ("choose models with context sizing appropriate to
-    each task"). These specific providers/models/token limits are a
-    starting point - add, remove, or retune entries as real task types
-    and provider preferences emerge; nothing else in the dispatcher
-    depends on these particular choices."""
-    return {
-        "code_generation": RoutingConfig(
-    primary=RoutingStep(provider="mistral", model="mistral-large-latest"),
-    fallbacks=[
-        RoutingStep(provider="cerebras", model="gpt-oss-120b"),
-        RoutingStep(provider="huggingface", model="Qwen/Qwen2.5-72B-Instruct"),
-        RoutingStep(provider="groq", model="llama-3.1-8b-instant"),
-        RoutingStep(provider="together", model="Qwen2.5-Coder-32B-Instruct"),
-    ],
-    temperature=0.1,
-    max_tokens=8192,
-        ),
-        "summarization": RoutingConfig(
-            primary=RoutingStep(provider="cerebras", model="llama3.1-8b"),
-            fallbacks=[
-                RoutingStep(provider="groq", model="openai/gpt-oss-20b"),
-                RoutingStep(provider="openrouter", model="meta-llama/llama-3.3-70b-instruct:free"),
-            ],
-            temperature=0.2,
-            max_tokens=2048,
-        ),
-    }
-
-
-class RoutingTable(BaseModel):
-    """Everything the dispatcher needs to resolve a task name to a
-    RoutingConfig. Construct directly for tests/overrides, or use
-    get_routing_table() for the process-wide cached instance."""
-
-    main_model: RoutingConfig = Field(default_factory=default_main_model)
-    default_routing: dict[str, RoutingConfig] = Field(
-        default_factory=default_task_routing
-    )
-
-    def resolve(self, task_name: str | None) -> RoutingConfig:
-        """Task-specific routing if configured, else main_model."""
-        if task_name and task_name in self.default_routing:
-            return self.default_routing[task_name]
-        return self.main_model
+        Convenience for callers that only need one provider/model pair
+        rather than the full pool + fallback list (e.g. a quick manual
+        `--model` style lookup). Raises ConfigPackError if the resolved
+        pack's pool is empty.
+        """
+        pack = self.resolve(pack_name)
+        if not pack.pool:
+            raise ConfigPackError(
+                f"Pack '{pack_name or self._default_pack}' has an empty pool."
+            )
+        return pack.pool[0]
 
 
 @lru_cache(maxsize=1)
-def get_routing_table() -> RoutingTable:
-    return RoutingTable()
+def get_routing_resolver() -> RoutingResolver:
+    """Process-wide cached resolver, backed by the on-disk global config."""
+    manager = ConfigManager()
+    manager.load()
+    return RoutingResolver(manager)

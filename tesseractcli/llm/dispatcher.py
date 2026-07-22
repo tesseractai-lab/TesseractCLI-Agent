@@ -9,18 +9,14 @@ from __future__ import annotations
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 
+from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.logger import logger
 from tesseractcli.llm.providers import(AnthropicProvider, BaseLLMProvider, CerebrasProvider,
                                     CohereProvider, GitHubModelsProvider, GroqProvider, HuggingFaceProvider,
                                     LocalGGUFProvider, MistralProvider, OpenAIProvider, OpenRouterProvider,
-                                    TogetherProvider)
-from tesseractcli.llm.routing import RoutingConfig, RoutingTable, get_routing_table
+                                    TogetherProvider,GoogleProvider)
+from tesseractcli.llm.routing import RoutingResolver, get_routing_resolver
 
-# Error-message substrings that indicate "the request was too big for
-# this provider/model", as opposed to some other kind of failure. This
-# is a heuristic (providers don't share a common exception type), and
-# is deliberately kept in one place so it's easy to extend once we see
-# real provider error strings in the wild.
 _RATE_LIMIT_SIZE_MARKERS = (
     "rate limit",
     "rate_limit",
@@ -34,9 +30,9 @@ _RATE_LIMIT_SIZE_MARKERS = (
 
 
 class LLMDispatcher:
-    """Resolves a task name to a routing chain, and walks primary ->
-    fallbacks, truncating and retrying a step once if the failure looks
-    like a rate-limit/size problem rather than giving up on that step
+    """Resolves a pack name to a ModelPack, and walks pool -> fallback,
+    truncating and retrying a step once if the failure looks like a
+    rate-limit/size problem rather than giving up on that step
     outright."""
 
     _PROVIDER_REGISTRY: dict[str, type[BaseLLMProvider]] = {
@@ -51,10 +47,11 @@ class LLMDispatcher:
         "openrouter": OpenRouterProvider,
         "github_models": GitHubModelsProvider,
         "local_gguf": LocalGGUFProvider,
+        "google": GoogleProvider,
     }
 
-    def __init__(self, routing_table: RoutingTable | None = None) -> None:
-        self.routing_table = routing_table or get_routing_table()
+    def __init__(self, resolver: RoutingResolver | None = None) -> None:
+        self.resolver = resolver or get_routing_resolver()
         self._providers: dict[str, BaseLLMProvider] = {}
 
     def _get_provider(self, name: str) -> BaseLLMProvider:
@@ -67,112 +64,124 @@ class LLMDispatcher:
             self._providers[name] = self._PROVIDER_REGISTRY[name]()
         return self._providers[name]
 
-    def _routing_for(self, task_name: str | None) -> RoutingConfig:
-        return self.routing_table.resolve(task_name)
+    def _pack_for(self, pack_name: str | None) -> ModelPack:
+        return self.resolver.resolve(pack_name)
 
-    def get_llm(self, task_name: str | None = None) -> BaseChatModel:
+    def get_llm(self, pack_name: str | None = None) -> BaseChatModel:
         """Primary-only getter, no fallback walk - for callers that want
         a plain model handle (e.g. for `.bind_tools()`) rather than the
         retry/fallback-aware `ainvoke_with_fallback`."""
-        routing = self._routing_for(task_name)
-        provider = self._get_provider(routing.primary.provider)
+        pack = self._pack_for(pack_name)
+        primary = self._primary_of(pack, pack_name)
+        provider = self._get_provider(primary.provider)
         logger.debug(
-        "get_llm_with_tools → task={} provider={} model={} ",
-        task_name, routing.primary.provider, routing.primary.model,
-        # len(tools), [t.get("name") for t in tools],
-    )
-        return provider.get_model(
-            routing.primary.model,
-            temperature=routing.temperature,
-            max_tokens=routing.max_tokens,
+            "get_llm → pack={} provider={} model={}",
+            pack_name, primary.provider, primary.model,
+        )
+        return provider.get_model_safe(
+            primary.model,
+            temperature=pack.temperature,
+            max_tokens=pack.max_tokens,
         )
 
-    def get_llm_with_tools(self, tools: list[dict], task_name: str | None = None) -> BaseChatModel:
+    def get_llm_with_tools(self, tools: list[dict], pack_name: str | None = None) -> BaseChatModel:
         """Like get_llm(), but returns a tool-bound model - bind_tools()
         happens before with_retry() inside the provider, since RunnableRetry
-        doesn't forward bind_tools()."""
-        routing = self._routing_for(task_name)
-        provider = self._get_provider(routing.primary.provider)
+        doesn't forward bind_tools(). NOTE: this has no fallback/rate-limit
+        handling of its own - use ainvoke_with_fallback(..., tools=...) for
+        the full resilience path. This stays around for callers that only
+        need a raw bound model handle (e.g. streaming) without invoking it
+        through the dispatcher."""
+        pack = self._pack_for(pack_name)
+        primary = self._primary_of(pack, pack_name)
+        provider = self._get_provider(primary.provider)
 
         logger.debug(
-            "get_llm_with_tools → task={} provider={} model={} tool_count={} tools={}",
-            task_name,
-            routing.primary.provider,
-            routing.primary.model,
+            "get_llm_with_tools → pack={} provider={} model={} tool_count={} tools={}",
+            pack_name,
+            primary.provider,
+            primary.model,
             len(tools),
             [t.get("name") for t in tools],
         )
-        # Full schemas at TRACE-ish detail — descriptions are exactly
-        # what the model reasons over when deciding whether to call a
-        # tool, so log them too (not just the names).
-        # for t in tools:
-        #     logger.debug(
-        #         "  tool_def name={} description={!r}",
-        #         t.get("name"),
-        #         (t.get("description") or "")[:200],
-        #     )
 
-        return provider.get_model_with_tools(
-            routing.primary.model,
+        return provider.get_model_with_tools_safe(
+            primary.model,
             tools,
-            temperature=routing.temperature,
-            max_tokens=routing.max_tokens,
+            temperature=pack.temperature,
+            max_tokens=pack.max_tokens,
         )
 
     async def ainvoke_with_fallback(
-        self, messages: list[BaseMessage], task_name: str | None = None
-    ) -> str:
-        """Try primary, then each fallback in order. Within a single
-        step: `.with_retry()` (already baked into every provider's
-        `get_model`) absorbs transient failures. If the step still fails
-        and it looks rate-limit/size-shaped, truncate the last message
-        and retry that SAME step once before moving to the next
-        fallback. Raises RuntimeError only if every step is exhausted.
+        self,
+        messages: list[BaseMessage],
+        tools: list[dict] | None = None,
+        pack_name: str | None = None,
+    ) -> BaseMessage:
+        """Try every model in the pack's pool, then every model in its
+        fallback list, in order. Within a single step: `.with_retry()`
+        (already baked into every provider's get_model/get_model_with_tools)
+        absorbs transient failures. If the step still fails and it looks
+        rate-limit/size-shaped, truncate the last message and retry that
+        SAME step once before moving to the next one. Raises RuntimeError
+        only if every step is exhausted.
+
+        Pass `tools` to get a tool-bound model at every step (pool AND
+        fallback) - this is the single entry point for tool-calling +
+        fallback + rate-limit resilience combined. Returns the full
+        BaseMessage (not just .content), since tool calls live on
+        `.tool_calls`, not in `.content`.
         """
-        routing = self._routing_for(task_name)
-        steps = [routing.primary, *routing.fallbacks]
+        pack = self._pack_for(pack_name)
+        steps = [*pack.pool, *pack.fallback]
         last_error: Exception | None = None
 
         for step in steps:
             provider = self._get_provider(step.provider)
-            model = provider.get_model_safe(
-                step.model,
-                temperature=routing.temperature,
-                max_tokens=routing.max_tokens,
-            )
+
+            if tools:
+                model = provider.get_model_with_tools_safe(
+                    step.model,
+                    tools,
+                    temperature=pack.temperature,
+                    max_tokens=pack.max_tokens,
+                )
+            else:
+                model = provider.get_model_safe(
+                    step.model,
+                    temperature=pack.temperature,
+                    max_tokens=pack.max_tokens,
+                )
+
             if model is None:
                 logger.warning(
-                    "skipping %s/%s - provider unavailable (missing key/config)",
+                    "skipping {}/{} - provider unavailable (missing key/config)",
                     step.provider,
                     step.model,
                 )
                 continue
 
             try:
-                result = await model.ainvoke(messages)
-                return result.content
+                return await model.ainvoke(messages)
             except Exception as e:  # noqa: BLE001 - intentional: any failure -> try next
                 if not self._looks_like_rate_limit_error(e):
                     last_error = e
-                    logger.error(
-                        "%s/%s failed: %s", step.provider, step.model, e
-                    )
+                    logger.error("{}/{} failed: {}", step.provider, step.model, e)
                     continue
 
                 logger.warning(
-                    "%s/%s hit a rate-limit/size-shaped error, truncating "
+                    "{}/{} hit a rate-limit/size-shaped error, truncating "
                     "and retrying this step once",
                     step.provider,
                     step.model,
                 )
                 truncated = self._truncate_messages(messages)
                 try:
-                    result = await model.ainvoke(truncated)
-                    return result.content
+                    return await model.ainvoke(truncated)
                 except Exception as e2:  # noqa: BLE001
                     last_error = e2
                     logger.error(
-                        "%s/%s failed again after truncation: %s",
+                        "{}/{} failed again after truncation: {}",
                         step.provider,
                         step.model,
                         e2,
@@ -180,8 +189,16 @@ class LLMDispatcher:
                     continue
 
         raise RuntimeError(
-            f"All routing steps exhausted for task '{task_name}'"
+            f"All routing steps exhausted for pack '{pack_name}'"
         ) from last_error
+
+    @staticmethod
+    def _primary_of(pack: ModelPack, pack_name: str | None) -> ModelConfig:
+        """First model in the pack's pool - used by the single-model
+        getters (get_llm / get_llm_with_tools), which don't walk fallback."""
+        if not pack.pool:
+            raise ValueError(f"Pack '{pack_name}' has an empty pool.")
+        return pack.pool[0]
 
     @staticmethod
     def _looks_like_rate_limit_error(error: Exception) -> bool:
