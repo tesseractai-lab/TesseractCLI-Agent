@@ -4,7 +4,6 @@ tesseractcli/tools/write_file.py
 
 import time
 from pathlib import Path
-from typing import Literal
 
 from tesseractcli.models.tool_models import ToolResult, WriteFileMetadata, WriteFileArgs
 from tesseractcli.models.exceptions import PathEscapesWorkspaceError
@@ -40,7 +39,7 @@ def write_file(
         else:
             if already_existed:
                 side_effects.append({"type": "overwrote_existing_file", "detail": str(full_path)})
-            atomic_write(full_path, content)
+            atomic_write(full_path, content,workspace_root=workspace_root)
 
         metadata["bytes_written"] = len(content.encode("utf-8"))
         if side_effects:
@@ -58,4 +57,4 @@ def write_file(
 
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="write_file", schema=WriteFileArgs, fn=write_file)
+    registry.add(name="write_file", schema=WriteFileArgs, fn=write_file,needs_approval=True)
