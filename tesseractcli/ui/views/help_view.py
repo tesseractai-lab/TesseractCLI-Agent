@@ -32,11 +32,12 @@ GLOBAL_HELP_TEXT = (
     "  home                                         go to the home screen\n"
     "  model                                        pick a different model pack\n"
     "  copy             (-c)                        copy the last agent reply\n"
+    "  clear            (-cl, --clear, cls)          clear the terminal\n"
     "  help             (-h, --help, ?)              show this help\n"
     "  exit / quit      (-q, --quit)                quit TesseractCLI\n\n"
     "[dim]Shortcut convention: a single leading '-' is a short flag (-h, -cfg,\n"
-    "-q, -c) and a leading '--' spells the same thing out in full (--help,\n"
-    "--config, --quit) - the same short/long option shape as any\n"
+    "-q, -c, -cl) and a leading '--' spells the same thing out in full (--help,\n"
+    "--config, --quit, --clear) - the same short/long option shape as any\n"
     "getopt/argparse-style CLI, so nothing new to learn.[/dim]"
 )
 

@@ -90,6 +90,8 @@ GLOBAL_ALIASES = {
     "--home": "home",
     "--model": "model",
     "-c": "copy", "copy": "copy",
+    "-cl": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
+    "-p": "packs", "--packs": "packs", "packs": "packs",
 }
 
 # Stages where free text is being captured *verbatim on purpose* (a
@@ -329,6 +331,13 @@ class TesseractApp(App):
                 self.write_log(f"[dim]›[/dim] {text}")
                 self._copy_last_reply()
                 return
+            if global_cmd == "clear":
+                self._clear_scrollback()
+                return
+            if global_cmd == "packs":
+                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(settings_commands.render_packs_overview(self.config_manager))
+                return
             if global_cmd and self.stage in {"chat", "settings", "home"}:
                 self._navigate(global_cmd)
                 return
@@ -444,6 +453,17 @@ class TesseractApp(App):
         input_widget.display = True
         input_widget.value = ""
         input_widget.focus()
+
+    def _clear_scrollback(self) -> None:
+        """Backs the 'clear'/-cl/cls command. `RichLog` (unlike a real
+        terminal buffer) has no concept of "scroll back up past this
+        point" once cleared - `.clear()` wipes it outright, same as a
+        real terminal's `clear`/`cls` would. Re-prints the banner
+        after, purely so clearing doesn't leave a totally blank screen
+        with no sense of where you are."""
+        self.query_one("#scrollback", RichLog).clear()
+        self._print_banner()
+        self._refresh_mode_line()
 
     def _copy_last_reply(self) -> None:
         """Backs the 'copy'/-c command. `RichLog` scrollback text can't

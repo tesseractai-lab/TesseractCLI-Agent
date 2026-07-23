@@ -68,6 +68,7 @@ COMMAND_CHOICES: list[str] = [
     "restore latest",
     "validate",
     "chat",
+    "clear",
     "exit",
 ]
 
