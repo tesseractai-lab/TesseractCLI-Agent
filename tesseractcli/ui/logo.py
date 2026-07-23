@@ -7,6 +7,8 @@ markup version with a gradient is built from it at import time.
 """
 
 from __future__ import annotations
+from tesseractcli.config.settings import get_settings
+version = get_settings().APP_VERSION
 
 # Plain ASCII art, no color markup.
 ASCII_TITLE = r"""
@@ -49,7 +51,7 @@ _GRADIENT_COLORS = [
 
 FALLBACK_TITLE = "[bold]TESSERACT[/bold]"
 
-TAGLINE = "[dim]a terminal-native coding agent[/dim]"
+TAGLINE = f"[dim]a terminal-native coding agent [#ccff3f] v{version} [#ccff3f][/dim]"
 
 
 def build_gradient_logo() -> str:

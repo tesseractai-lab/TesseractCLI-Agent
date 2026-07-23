@@ -35,10 +35,10 @@ GLOBAL_HELP_TEXT = (
     "  clear            (-cl, --clear, cls)          clear the terminal\n"
     "  help             (-h, --help, ?)              show this help\n"
     "  exit / quit      (-q, --quit)                quit TesseractCLI\n\n"
-    "[dim]Shortcut convention: a single leading '-' is a short flag (-h, -cfg,\n"
-    "-q, -c, -cl) and a leading '--' spells the same thing out in full (--help,\n"
-    "--config, --quit, --clear) - the same short/long option shape as any\n"
-    "getopt/argparse-style CLI, so nothing new to learn.[/dim]"
+    # "[dim]Shortcut convention: a single leading '-' is a short flag (-h, -cfg,\n"
+    # "-q, -c, -cl) and a leading '--' spells the same thing out in full (--help,\n"
+    # "--config, --quit, --clear) - the same short/long option shape as any\n"
+    # "getopt/argparse-style CLI, so nothing new to learn.[/dim]"
 )
 
 

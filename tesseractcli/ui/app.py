@@ -90,7 +90,7 @@ GLOBAL_ALIASES = {
     "--home": "home",
     "--model": "model",
     "-c": "copy", "copy": "copy",
-    "-cl": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
+    "-cls": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
     "-p": "packs", "--packs": "packs", "packs": "packs",
 }
 
