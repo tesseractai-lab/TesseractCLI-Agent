@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from tesseractcli.config.settings import get_settings
 from tesseractcli.ui.views.box import render_box
-from tesseractcli.ui.views.settings_commands import HELP_TEXT
+from tesseractcli.ui.views.settings_commands import HELP_TEXT, pack_color
 
 if TYPE_CHECKING:
     from tesseractcli.ui.app import TesseractApp
@@ -75,8 +75,8 @@ def render_settings(app: "TesseractApp") -> Any:
     pack = app.selected_pack or "(not set)"
 
     pack_summaries = "\n".join(
-        f"  {name}: {len(p.pool)} pool / {len(p.fallback)} fallback"
-        for name, p in cfg.providers.items()
+        f"  [{pack_color(i)}]{name}[/{pack_color(i)}]: {len(p.pool)} pool / {len(p.fallback)} fallback"
+        for i, (name, p) in enumerate(cfg.providers.items())
     ) or "  (no packs configured)"
 
     overview = (
