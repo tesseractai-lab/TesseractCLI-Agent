@@ -46,21 +46,57 @@ if TYPE_CHECKING:
 # NOTE: this was previously referenced from app.py (`settings_commands.ALIASES`)
 # without being defined here at all - any settings-stage input triggered an
 # AttributeError that crashed the whole app instead of showing an error.
+# Full command templates for ghost-text autocomplete on `#main-input`
+# while `stage == "settings"` (see `ui/widgets/chat_input.py`). Entries
+# that take an argument end with a trailing space so accepting the
+# suggestion (right arrow) leaves the cursor ready to type the name,
+# rather than needing a space typed manually afterwards.
+COMMAND_CHOICES: list[str] = [
+    "help",
+    "packs",
+    "pack ",
+    "suggest",
+    "add pack ",
+    "add model ",
+    "remove pack ",
+    "remove model ",
+    "set ",
+    "get ",
+    "backup",
+    "backups",
+    "restore",
+    "restore latest",
+    "validate",
+    "chat",
+    "exit",
+]
+
+# NOTE: "back" used to be listed here (and in HELP_TEXT below) as a
+# synonym for "chat", but it was never actually wired to anything -
+# NAV_COMMANDS in app.py (the thing that makes bare words like "chat"
+# navigate anywhere) never included "back", so typing it just fell
+# through to "unrecognized command". Removed rather than fixed: "chat"
+# already does the job, and keeping both invited confusion with
+# "backup"/"backups"/"restore" right below it. -cnf's mapping to
+# "settings" was similarly dead here (this dict is only consulted
+# *while already in* the settings stage, and "settings" was never a
+# recognized command in `handle()` either) - it's now a real, working
+# global shortcut instead (see `GLOBAL_ALIASES` in `ui/app.py`).
 ALIASES: dict[str, str] = {
-    "s": "suggest",
-    "h": "help",
+    "-s": "suggest",
+    "-h": "help",
     "?": "help",
-    "p": "packs",
-    "ls": "packs",
-    "a": "add",
-    "rm": "remove",
-    "r": "remove",
+    "-p": "packs",
+    "ls-p": "packs",
+    "-a": "add",
+    "-rm": "remove",
+    "-r": "remove",
 }
 
 HELP_TEXT = (
-    "  packs            (p, ls)                   list packs and their models\n"
+    "  packs            (-p, ls-p)             list packs and their models\n"
     "  pack <name>                                show one pack in detail\n"
-    "  suggest          (s)                        provider/model suggestions\n"
+    "  suggest          (-s)                     provider/model suggestions\n"
     "  add pack <name>                             create a new empty pack\n"
     "  remove pack <name>                          delete a pack\n"
     "  add model <pack> <provider> <model> [fallback]\n"
@@ -71,9 +107,9 @@ HELP_TEXT = (
     "  backups                                     list saved backups\n"
     "  restore [latest|<file>]                     roll back to a backup\n"
     "  validate                                    check config against schema\n"
-    "  back / chat                                 return to chat\n"
-    "  help             (h, ?)                      show this list\n"
-    "  exit                                        quit TesseractCLI\n\n"
+    "  chat                                        return to chat\n"
+    "  help             (-h, --help, ?)              show this list\n"
+    "  exit             (-q, --quit)                quit TesseractCLI\n\n"
     "[dim]remove pack/model always asks for '... confirm' before deleting,\n"
     "and takes a backup first - nothing is a one-way door.[/dim]"
 )

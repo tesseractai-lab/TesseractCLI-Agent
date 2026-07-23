@@ -12,11 +12,11 @@ side by side, and it matters not to blur them:
   paths, agent defaults. This is what `settings_commands.py` reads
   *and* writes; this view is just its landing page.
 
-Previously this view only rendered `get_settings()` and never touched
-ConfigManager at all, so nothing shown here reflected the YAML file or
-let you see/edit the packs inside it - that's what this fixes, plus
-wrapping the whole thing in a bordered panel (`ui.views.box`) instead
-of a loose block of text.
+Each section below gets its own color pair (a saturated header color
+plus a lighter/"open" tint of the same hue for its body) instead of
+one flat block of default-colored text - makes it easier to visually
+jump to "API keys" vs "Packs" vs the command reference at a glance
+instead of reading top to bottom every time.
 """
 
 from __future__ import annotations
@@ -44,6 +44,21 @@ _PROVIDER_KEY_FIELDS = [
     ("Google", "GOOGLE_API_KEY"),
 ]
 
+# (header color, lighter/"open" body tint) per section - same hue,
+# header is the saturated version and body is the washed-out one, so
+# a section reads as one color family rather than two unrelated colors.
+_SECTION_COLORS: dict[str, tuple[str, str]] = {
+    "overview": ("#4dd8ff", "#a8e8ff"),  # cyan
+    "keys": ("#4ddb9e", "#a8f2d4"),      # green
+    "packs": ("#b98cff", "#d9c6ff"),     # purple
+    "help": ("#e8a33d", "#f5cf94"),      # amber
+}
+
+
+def _section(title: str, key: str, content: str) -> str:
+    header_color, body_color = _SECTION_COLORS[key]
+    return f"[bold {header_color}]{title}[/bold {header_color}]\n[{body_color}]{content}[/{body_color}]"
+
 
 def render_settings(app: "TesseractApp") -> Any:
     settings = get_settings()
@@ -56,22 +71,28 @@ def render_settings(app: "TesseractApp") -> Any:
         mark = "[green]✓ configured[/green]" if configured else "[dim]— not set[/dim]"
         provider_lines.append(f"  {label:<14} {mark}")
 
-    workspace = app.workspace_root or "[dim](not set)[/dim]"
-    pack = app.selected_pack or "[dim](not set)[/dim]"
+    workspace = app.workspace_root or "(not set)"
+    pack = app.selected_pack or "(not set)"
 
     pack_summaries = "\n".join(
         f"  {name}: {len(p.pool)} pool / {len(p.fallback)} fallback"
         for name, p in cfg.providers.items()
-    ) or "  [dim](no packs configured)[/dim]"
+    ) or "  (no packs configured)"
 
-    body = (
-        f"[bold]App[/bold]              {settings.APP_NAME} v{settings.APP_VERSION} ({settings.ENV_MODE.value})\n"
-        f"[bold]Workspace[/bold]        {workspace}\n"
-        f"[bold]Active pack[/bold]      {pack}\n"
-        f"[bold]Config file[/bold]      {manager.config_path}\n"
-        f"[bold]Schema version[/bold]   {cfg.schema_version}\n\n"
-        "[bold]API keys[/bold]\n" + "\n".join(provider_lines) + "\n\n"
-        "[bold]Packs (from global_config.yaml)[/bold]\n" + pack_summaries + "\n\n"
-        f"{HELP_TEXT}"
+    overview = (
+        f"App              {settings.APP_NAME} v{settings.APP_VERSION} ({settings.ENV_MODE.value})\n"
+        f"Workspace        {workspace}\n"
+        f"Active pack      {pack}\n"
+        f"Config file      {manager.config_path}\n"
+        f"Schema version   {cfg.schema_version}"
+    )
+
+    body = "\n\n".join(
+        [
+            _section("Overview", "overview", overview),
+            _section("API keys", "keys", "\n".join(provider_lines)),
+            _section("Packs (from global_config.yaml)", "packs", pack_summaries),
+            _section("Commands", "help", HELP_TEXT),
+        ]
     )
     return render_box("Settings", body)
