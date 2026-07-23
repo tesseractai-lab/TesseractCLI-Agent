@@ -32,7 +32,8 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, OptionList, RichLog, Static
+from textual.css.query import NoMatches
+from textual.widgets import OptionList, RichLog, Static, TextArea
 from textual.widgets.option_list import Option
 
 from tesseractcli.agent.loop import run_inner_loop
@@ -45,9 +46,11 @@ from tesseractcli.ui.views import settings_commands
 from tesseractcli.ui.views.approval_view import ToolCallInfo, render_approval_preview
 from tesseractcli.ui.views.banner import build_banner_panel, build_tagline
 from tesseractcli.ui.views.box import render_box
+from tesseractcli.ui.views.help_view import render_help
 from tesseractcli.ui.views.home_view import render_home
 from tesseractcli.ui.views.model_picker import PackChoice, load_pack_choices
 from tesseractcli.ui.views.settings_view import render_settings
+from tesseractcli.ui.widgets.chat_input import ChatTextArea
 
 # Bare-word navigation commands, recognized only on an exact (stripped,
 # case-insensitive) match against the whole input - not a slash-command
@@ -63,6 +66,40 @@ NAV_COMMANDS = {"settings", "chat", "home", "model", "exit", "quit"}
 # Single-letter shortcuts resolved before NAV_COMMANDS matching, so "q"
 # closes the app the same way typing "exit" does.
 NAV_ALIASES = {"q": "exit"}
+
+# Meta/utility shortcuts available from (almost) any stage - not gated
+# behind NAV_COMMANDS' {"chat","settings","home"} restriction, since
+# "how do I even use this" and "get me out of here" need to work
+# mid-workspace-setup or mid-wizard too, not just once you've already
+# reached chat.
+#
+# Dash convention (decided): a single leading "-" is a short flag-style
+# shortcut (1-4 letters: -h, -cfg, -q, -c), and a leading "--" spells
+# the same command out in full (--help, --config, --quit) - the
+# classic getopt/argparse short-option/long-option shape, which is
+# already what typer (this project's CLI framework) uses. Picked that
+# over the reverse (long form single-dash, short form double-dash)
+# specifically because it's the convention everyone already knows -
+# nothing new to learn on top of a CLI tool.
+GLOBAL_ALIASES = {
+    "-h": "help", "--help": "help", "?": "help",
+    "-cfg": "settings", "--config": "settings",
+    "-cnf": "settings",  # soft-deprecated synonym of -cfg, kept for compatibility
+    "-q": "exit", "--quit": "exit",
+    "--chat": "chat",
+    "--home": "home",
+    "--model": "model",
+    "-c": "copy", "copy": "copy",
+    "-cl": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
+    "-p": "packs", "--packs": "packs", "packs": "packs",
+}
+
+# Stages where free text is being captured *verbatim on purpose* (a
+# tool-approval y/n, a hand-typed model id, a hand-typed new pack
+# name) - GLOBAL_ALIASES is deliberately not intercepted here, or
+# "help"/"-h" could never actually be typed as, say, a literal model
+# id. Same tradeoff already documented above for NAV_COMMANDS.
+_FREE_TEXT_STAGES = {"awaiting_approval", "wiz_model_custom", "wiz_pack_new"}
 
 
 class TesseractApp(App):
@@ -89,9 +126,21 @@ class TesseractApp(App):
     #input-area { height: auto; width: 1fr; padding: 0 1 1 1; }
     #prompt-row { height: auto; width: 1fr; }
     #prompt-glyph { width: auto; padding: 0 1 0 0; color: #4dd8ff; text-style: bold; }
-    #main-input { width: 1fr; border: none; background: transparent; padding: 0; }
+    #main-input { width: 1fr; border: none; background: transparent; padding: 0; height: 1; }
     #main-input:focus { border: none; }
     """
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """`#main-input` starts at `height: 1` (see CSS) since almost
+        every stage - workspace path, settings commands, wizard steps,
+        approval y/n - is a one-liner; this is what makes it actually
+        grow for the one stage (chat) where someone might paste a
+        multi-line code block. Clamped to 8 lines so a huge paste
+        scrolls inside the box instead of pushing the input off-screen."""
+        if event.text_area.id != "main-input":
+            return
+        lines = event.text_area.document.line_count
+        event.text_area.styles.height = max(1, min(lines, 8))
 
     def compose(self) -> ComposeResult:
         yield RichLog(id="scrollback", markup=True, wrap=True, highlight=False)
@@ -100,7 +149,46 @@ class TesseractApp(App):
         with Vertical(id="input-area"):
             with Horizontal(id="prompt-row"):
                 yield Static("›", id="prompt-glyph")
-                yield Input(placeholder="", id="main-input")
+                yield ChatTextArea(id="main-input", placeholder="")
+
+    # ------------------------------------------------------------------
+    # stage property
+    # ------------------------------------------------------------------
+    #
+    # A plain `self.stage = "..."` attribute used to be set directly at
+    # ~10 call sites (navigation, workspace/model-pick, every wizard
+    # step, tool approval). Adding autocomplete meant `#main-input`'s
+    # `command_choices` needs to stay in sync with whatever stage is
+    # active - rather than adding a second call next to all ~10 of
+    # those assignments (and inevitably missing one later), `stage` is
+    # a property so every existing `self.stage = "..."` assignment
+    # keeps working unchanged and automatically refreshes autocomplete.
+
+    @property
+    def stage(self) -> str:
+        return self._stage
+
+    @stage.setter
+    def stage(self, value: str) -> None:
+        self._stage = value
+        self._refresh_command_choices()
+
+    def _refresh_command_choices(self) -> None:
+        """Ghost-text autocomplete choices for `#main-input`: the bare
+        nav words (chat/settings/home/model/exit/quit) wherever they're
+        valid, plus the full settings command grammar while actually in
+        `settings` - empty everywhere else (wizard steps, approval y/n,
+        workspace path, and plain chat text) so it never suggests
+        something irrelevant over a real message to the agent."""
+        choices: list[str] = []
+        if self.stage in {"chat", "settings", "home"}:
+            choices.extend(NAV_COMMANDS)
+        if self.stage == "settings":
+            choices.extend(settings_commands.COMMAND_CHOICES)
+        try:
+            self.query_one("#main-input", ChatTextArea).command_choices = choices
+        except NoMatches:
+            pass  # stage set before compose() has run yet
 
     def on_mount(self) -> None:
         # Shared state, built once - same as the old on_mount, just no
@@ -117,6 +205,7 @@ class TesseractApp(App):
         self.workspace_root: Path | None = None
         self.selected_pack: str | None = None
         self.messages: list = []  # BaseMessage list, mutated in place by run_inner_loop
+        self._last_agent_reply: str = ""  # backs the 'copy'/-c command
 
         self.stage: str = "workspace"
         self._pack_return_stage: str = "chat"
@@ -142,8 +231,8 @@ class TesseractApp(App):
             )
             self.write_log("")
         self.write_log("[bold]Workspace folder:[/bold] (press Enter to accept, or type a path)")
-        self.query_one("#main-input", Input).value = str(Path.cwd())
-        self.query_one("#main-input", Input).focus()
+        self.query_one("#main-input", ChatTextArea).value = str(Path.cwd())
+        self.query_one("#main-input", ChatTextArea).focus()
         self._refresh_mode_line()
 
     def _load_config_safely(self) -> None:
@@ -196,7 +285,7 @@ class TesseractApp(App):
     # input routing - the whole replacement for the old push_screen chain
     # ------------------------------------------------------------------
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_chat_text_area_submitted(self, event: ChatTextArea.Submitted) -> None:
         """Thin wrapper: every input path funnels through here, so this
         is the single choke point where an unhandled exception anywhere
         below (a bad command, a bug in a view module, a config error we
@@ -222,14 +311,36 @@ class TesseractApp(App):
             )
         )
 
-    def _route_input(self, event: Input.Submitted) -> None:
+    def _route_input(self, event: ChatTextArea.Submitted) -> None:
         text = event.value
-        input_widget = self.query_one("#main-input", Input)
+        input_widget = self.query_one("#main-input", ChatTextArea)
         input_widget.value = ""
 
         stripped = text.strip()
         if not stripped:
             return
+
+        if self.stage not in _FREE_TEXT_STAGES:
+            global_cmd = GLOBAL_ALIASES.get(stripped.lower())
+            if global_cmd == "help":
+                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log("")
+                self.write_log(render_help(self))
+                return
+            if global_cmd == "copy":
+                self.write_log(f"[dim]›[/dim] {text}")
+                self._copy_last_reply()
+                return
+            if global_cmd == "clear":
+                self._clear_scrollback()
+                return
+            if global_cmd == "packs":
+                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(settings_commands.render_packs_overview(self.config_manager))
+                return
+            if global_cmd and self.stage in {"chat", "settings", "home"}:
+                self._navigate(global_cmd)
+                return
 
         if self.stage == "workspace":
             self._handle_workspace_input(stripped)
@@ -331,17 +442,52 @@ class TesseractApp(App):
         suggest wizard below."""
         self.write_log("")
         self.write_log(f"[bold]{prompt}[/bold] (↑/↓ then Enter):")
-        input_widget = self.query_one("#main-input", Input)
+        input_widget = self.query_one("#main-input", ChatTextArea)
         input_widget.display = False
         option_list = OptionList(*options, id=list_id)
         self.query_one("#input-area", Vertical).mount(option_list)
         option_list.focus()
 
     def _restore_input(self) -> None:
-        input_widget = self.query_one("#main-input", Input)
+        input_widget = self.query_one("#main-input", ChatTextArea)
         input_widget.display = True
         input_widget.value = ""
         input_widget.focus()
+
+    def _clear_scrollback(self) -> None:
+        """Backs the 'clear'/-cl/cls command. `RichLog` (unlike a real
+        terminal buffer) has no concept of "scroll back up past this
+        point" once cleared - `.clear()` wipes it outright, same as a
+        real terminal's `clear`/`cls` would. Re-prints the banner
+        after, purely so clearing doesn't leave a totally blank screen
+        with no sense of where you are."""
+        self.query_one("#scrollback", RichLog).clear()
+        self._print_banner()
+        self._refresh_mode_line()
+
+    def _copy_last_reply(self) -> None:
+        """Backs the 'copy'/-c command. `RichLog` scrollback text can't
+        be mouse-selected the way a normal terminal buffer can - that's
+        a Textual limitation (the app owns mouse input for its
+        widgets), not a bug here. Two ways around it: (1) most terminal
+        emulators (Windows Terminal, iTerm2, kitty, Alacritty, WezTerm,
+        GNOME Terminal) let you hold Shift while dragging to select
+        text natively, bypassing the app entirely - no code involved;
+        (2) this command, which pushes the last agent reply to the
+        system clipboard over OSC 52 via Textual's own
+        `App.copy_to_clipboard`, which works even over SSH."""
+        if not self._last_agent_reply:
+            self.write_log("[yellow]nothing to copy yet - no agent reply in this session.[/yellow]")
+            return
+        try:
+            self.copy_to_clipboard(self._last_agent_reply)
+            self.write_log("[green]✓[/green] last reply copied to clipboard.")
+        except Exception as exc:  # noqa: BLE001 - clipboard support varies by terminal
+            self.write_log(
+                f"[yellow]couldn't reach the system clipboard ({exc}).[/yellow] Try "
+                "holding Shift while you drag-select text - most terminals let you "
+                "select natively that way, bypassing the app."
+            )
 
     def show_model_picker(self) -> None:
         """Mounts an inline, arrow-key navigable OptionList in place of
@@ -365,16 +511,33 @@ class TesseractApp(App):
             list_id="pack-options",
         )
 
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+    async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         try:
-            self._route_option_selected(event)
+            await self._route_option_selected(event)
         except Exception as exc:  # noqa: BLE001 - same boundary as on_input_submitted
             self._report_error("Internal error", exc)
+            # Safety net: if the exception happened after `main-input`
+            # was hidden (see `_mount_options`) but before whichever
+            # branch below reached its own `_restore_input()`, the
+            # input would otherwise stay hidden forever with no way to
+            # type anything else - same failure mode the DuplicateIds
+            # bug below used to trigger.
+            self._restore_input()
 
-    def _route_option_selected(self, event: OptionList.OptionSelected) -> None:
+    async def _route_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Root cause of the old `DuplicateIds` crash: `Widget.remove()`
+        only *schedules* removal (it returns an awaitable, it doesn't
+        remove synchronously) - so the old code's `event.option_list.
+        remove()` followed immediately by e.g. `_wiz_show_model_step()`
+        (which mounts a fresh `OptionList` with the *same* `id="wiz-
+        options"`) could run the new mount before the old widget had
+        actually left the DOM, and Textual refuses to insert a second
+        widget with an ID that's still in use. Every branch below now
+        `await`s the removal before mounting whatever comes next, so
+        the old one is guaranteed gone first."""
         if self.stage == "model_pick" and event.option_list.id == "pack-options":
             chosen_name = event.option.id
-            event.option_list.remove()
+            await event.option_list.remove()
             self._restore_input()
 
             self.selected_pack = chosen_name
@@ -384,13 +547,13 @@ class TesseractApp(App):
             return
 
         if self.stage == "wiz_provider" and event.option_list.id == "wiz-options":
-            event.option_list.remove()
+            await event.option_list.remove()
             self._wiz["provider"] = event.option.id
             self._wiz_show_model_step()
             return
 
         if self.stage == "wiz_model" and event.option_list.id == "wiz-options":
-            event.option_list.remove()
+            await event.option_list.remove()
             if event.option.id == "__custom__":
                 self.stage = "wiz_model_custom"
                 self._restore_input()
@@ -401,7 +564,7 @@ class TesseractApp(App):
             return
 
         if self.stage == "wiz_pack" and event.option_list.id == "wiz-options":
-            event.option_list.remove()
+            await event.option_list.remove()
             if event.option.id == "__new__":
                 self.stage = "wiz_pack_new"
                 self._restore_input()
@@ -413,7 +576,7 @@ class TesseractApp(App):
             return
 
         if self.stage == "wiz_target" and event.option_list.id == "wiz-options":
-            event.option_list.remove()
+            await event.option_list.remove()
             self._wiz["target"] = event.option.id
             self._wiz_commit()
             return
@@ -516,7 +679,8 @@ class TesseractApp(App):
             self._report_error("Agent turn failed", exc)
             return
         self.set_status("")
-        self.write_log(f"[bold magenta]●[/bold magenta] {reply}")
+        self._last_agent_reply = reply
+        self.write_log(render_box("Agent", reply, style="#b98cff"))
 
     # ------------------------------------------------------------------
     # tool approval (replaces ApprovalModal)

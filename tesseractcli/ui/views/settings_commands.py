@@ -46,21 +46,58 @@ if TYPE_CHECKING:
 # NOTE: this was previously referenced from app.py (`settings_commands.ALIASES`)
 # without being defined here at all - any settings-stage input triggered an
 # AttributeError that crashed the whole app instead of showing an error.
+# Full command templates for ghost-text autocomplete on `#main-input`
+# while `stage == "settings"` (see `ui/widgets/chat_input.py`). Entries
+# that take an argument end with a trailing space so accepting the
+# suggestion (right arrow) leaves the cursor ready to type the name,
+# rather than needing a space typed manually afterwards.
+COMMAND_CHOICES: list[str] = [
+    "help",
+    "packs",
+    "pack ",
+    "suggest",
+    "add pack ",
+    "add model ",
+    "remove pack ",
+    "remove model ",
+    "set ",
+    "get ",
+    "backup",
+    "backups",
+    "restore",
+    "restore latest",
+    "validate",
+    "chat",
+    "clear",
+    "exit",
+]
+
+# NOTE: "back" used to be listed here (and in HELP_TEXT below) as a
+# synonym for "chat", but it was never actually wired to anything -
+# NAV_COMMANDS in app.py (the thing that makes bare words like "chat"
+# navigate anywhere) never included "back", so typing it just fell
+# through to "unrecognized command". Removed rather than fixed: "chat"
+# already does the job, and keeping both invited confusion with
+# "backup"/"backups"/"restore" right below it. -cnf's mapping to
+# "settings" was similarly dead here (this dict is only consulted
+# *while already in* the settings stage, and "settings" was never a
+# recognized command in `handle()` either) - it's now a real, working
+# global shortcut instead (see `GLOBAL_ALIASES` in `ui/app.py`).
 ALIASES: dict[str, str] = {
-    "s": "suggest",
-    "h": "help",
+    "-s": "suggest",
+    "-h": "help",
     "?": "help",
-    "p": "packs",
-    "ls": "packs",
-    "a": "add",
-    "rm": "remove",
-    "r": "remove",
+    "-p": "packs",
+    "ls-p": "packs",
+    "-a": "add",
+    "-rm": "remove",
+    "-r": "remove",
 }
 
 HELP_TEXT = (
-    "  packs            (p, ls)                   list packs and their models\n"
+    "  packs            (-p, ls-p)             list packs and their models\n"
     "  pack <name>                                show one pack in detail\n"
-    "  suggest          (s)                        provider/model suggestions\n"
+    "  suggest          (-s)                     provider/model suggestions\n"
     "  add pack <name>                             create a new empty pack\n"
     "  remove pack <name>                          delete a pack\n"
     "  add model <pack> <provider> <model> [fallback]\n"
@@ -71,27 +108,58 @@ HELP_TEXT = (
     "  backups                                     list saved backups\n"
     "  restore [latest|<file>]                     roll back to a backup\n"
     "  validate                                    check config against schema\n"
-    "  back / chat                                 return to chat\n"
-    "  help             (h, ?)                      show this list\n"
-    "  exit                                        quit TesseractCLI\n\n"
+    "  chat                                        return to chat\n"
+    "  help             (-h, --help, ?)              show this list\n"
+    "  exit             (-q, --quit)                quit TesseractCLI\n\n"
     "[dim]remove pack/model always asks for '... confirm' before deleting,\n"
     "and takes a backup first - nothing is a one-way door.[/dim]"
 )
 
 
-def _format_pack(name: str, pack: "ModelPack") -> str:
-    lines = [f"[bold]{name}[/bold]  (max_tokens={pack.max_tokens}, temperature={pack.temperature})"]
+def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
+    """Each pack gets its own header color (cycled from `_PACK_PALETTE`
+    by position, see `pack_color()`), and inside a pack, `pool` and
+    `fallback` are their own color families (green / amber) so you can
+    tell "this is a primary model" from "this is a fallback" at a
+    glance instead of reading the label - the model lines under each
+    are a lighter tint of that same family, same header/body pairing
+    used in `settings_view.py`."""
+    lines = [f"[bold {color}]{name}[/bold {color}]  (max_tokens={pack.max_tokens}, temperature={pack.temperature})"]
+
+    pool_header, pool_body = _POOL_COLORS
+    lines.append(f"  [bold {pool_header}]pool:[/bold {pool_header}]")
     if pack.pool:
-        lines.append("  pool:")
-        lines.extend(f"    - {m.provider}/{m.model}" for m in pack.pool)
+        lines.extend(f"    [{pool_body}]- {m.provider}/{m.model}[/{pool_body}]" for m in pack.pool)
     else:
-        lines.append("  pool:     [dim](empty)[/dim]")
+        lines.append("    [dim](empty)[/dim]")
+
+    fb_header, fb_body = _FALLBACK_COLORS
+    lines.append(f"  [bold {fb_header}]fallback:[/bold {fb_header}]")
     if pack.fallback:
-        lines.append("  fallback:")
-        lines.extend(f"    - {m.provider}/{m.model}" for m in pack.fallback)
+        lines.extend(f"    [{fb_body}]- {m.provider}/{m.model}[/{fb_body}]" for m in pack.fallback)
     else:
-        lines.append("  fallback: [dim](empty)[/dim]")
+        lines.append("    [dim](empty)[/dim]")
     return "\n".join(lines)
+
+
+# One color per pack, cycled by position so any number of packs stays
+# readable rather than reusing `settings_view.py`'s section palette
+# (which is fixed to 4 named sections and wouldn't scale to N packs).
+# `pool`/`fallback` are deliberately NOT in this list - they're a
+# separate, fixed color family (see `_format_pack`) shared by every
+# pack, so "this is a pool entry" reads the same way in every pack
+# rather than shifting color depending on which pack it's in.
+_PACK_PALETTE = ["#4dd8ff", "#b98cff", "#ff6b9d", "#6bcaff", "#e8a33d", "#4ddb9e"]
+_POOL_COLORS = ("#4ddb9e", "#a8f2d4")      # pool (primary): green / light green
+_FALLBACK_COLORS = ("#e8a33d", "#f5cf94")  # fallback: amber / light amber
+
+
+def pack_color(index: int) -> str:
+    """Exposed (not `_`-prefixed) so `settings_view.py`'s pack summary
+    list can use the exact same color per pack as the detailed
+    `packs`/`pack <name>` panels below - one pack, one color,
+    everywhere it's shown."""
+    return _PACK_PALETTE[index % len(_PACK_PALETTE)]
 
 
 def render_packs_overview(manager: "ConfigManager") -> Any:
@@ -102,7 +170,10 @@ def render_packs_overview(manager: "ConfigManager") -> Any:
     if not cfg.providers:
         body = "[dim](no packs configured yet - try 'add pack <name>')[/dim]"
     else:
-        body = "\n\n".join(_format_pack(name, pack) for name, pack in cfg.providers.items())
+        body = "\n\n".join(
+            _format_pack(name, pack, color=pack_color(i))
+            for i, (name, pack) in enumerate(cfg.providers.items())
+        )
     return render_box("Packs", body)
 
 
@@ -129,7 +200,8 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
         if cmd == "pack" and len(parts) >= 2:
             name = parts[1]
             pack = manager.packs.get_pack(name)
-            return render_box(f"Pack: {name}", _format_pack(name, pack))
+            index = list(manager.config.providers.keys()).index(name) if name in manager.config.providers else 0
+            return render_box(f"Pack: {name}", _format_pack(name, pack, color=pack_color(index)))
 
         if cmd == "suggest":
             return render_box("Provider / model suggestions", suggestions_text())
