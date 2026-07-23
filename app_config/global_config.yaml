@@ -1,28 +1,36 @@
-schema_version: "1.0"
-
+schema_version: '1.0'
 providers:
   main_pack:
     pool:
-      - provider: groq
-        model: qwen/qwen3.6-27b
+    - provider: groq
+      model: qwen/qwen3.6-27b
+    - provider: mistral
+      model: mistral-small-latest
     fallback:
-      - provider: cerebras
-        model: llama3.1-8b
+    - provider: cerebras
+      model: llama3.1-8b
+    - provider: github_models
+      model: gpt-4o-mini
     max_tokens: 4096
     temperature: 0.7
   secondary_pack:
     pool:
-      - provider: openai
-        model: gpt-4o-mini
+    - provider: openai
+      model: gpt-4o-mini
     fallback: []
     max_tokens: 2048
     temperature: 0.7
-
+  new_pa:
+    pool:
+    - provider: openai
+      model: gpt
+    fallback: []
+    max_tokens: 5000
+    temperature: 0.7
 paths:
   data_dir: data
   logs_dir: logs
   cache_dir: cache
-
 agent:
   temperature: 0.7
   max_iterations: 10
