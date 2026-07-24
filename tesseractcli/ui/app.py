@@ -8,19 +8,21 @@ then `ChatScreen` - four separate full-screen `Screen`s, each with its
 own `Header`/`Footer`, replacing the one before it.
 
 This version has exactly one screen (the App itself, no `Screen`
-subclasses at all): a persistent `RichLog` scrollback that nothing ever
-clears, and one `Input` fixed at the bottom that is reused for every
-stage (workspace path, model pack, chat messages, tool approval, and the
+subclasses at all): a scrollback that nothing ever clears on its own,
+and one `Input` fixed at the bottom that is reused for every stage
+(workspace path, model pack, chat messages, tool approval, and the
 `settings`/`chat`/`home`/`model` navigation commands). What used to be a
 screen transition is now just "write some text into the log and change
 `self.stage`".
 
-Known simplification worth flagging: `RichLog` can only append lines, it
-can't remove a specific line once written (unlike a `Screen` you can pop
-and discard). So the transient "thinking" status while the agent is
-running is shown on a separate one-line `Static` above the input, not in
-the log itself - that line gets overwritten/cleared, the log never does.
-"""
+The scrollback was originally a `RichLog` (append-only, no mouse text
+selection, can't remove a specific line once written). It's now a
+`VerticalScroll` (`#scrollback`) holding one `SelectableStatic` widget
+per entry, mounted via `write_log()` - this is what makes real
+click-drag text selection work, and as a side effect also makes a
+specific entry removable by id (see `_remove_echo`, used to swap the
+"you typed this" line for the finished, bordered turn box once an
+agent reply or error comes back)."""
 
 from __future__ import annotations
 
@@ -31,9 +33,9 @@ from typing import Any
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
-from textual.widgets import OptionList, RichLog, Static, TextArea
+from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from tesseractcli.agent.loop import run_inner_loop
@@ -92,7 +94,35 @@ GLOBAL_ALIASES = {
     "-c": "copy", "copy": "copy",
     "-cls": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
     "-p": "packs", "--packs": "packs", "packs": "packs",
+    "-ws": "workspace", "--workspace": "workspace", "workspace": "workspace",
 }
+
+# Second-token flags recognized right after a "-rm"/"remove"/"-a"/"add"
+# head, so shorthand like "-rm -p mypack" or "add -md mypack groq llama"
+# is understood as "remove pack mypack" / "add model mypack groq llama"
+# without having to spell the word "pack"/"model" out. Kept intentionally
+# tiny (just the two nouns the grammar actually has) rather than a
+# general flag parser.
+_SHORTHAND_KIND_FLAGS = {"-p": "pack", "pack": "pack", "-md": "model", "model": "model"}
+
+
+def _translate_compound_shorthand(words: list[str]) -> str | None:
+    """Rewrites compound shorthand ('-rm -p <name>', 'add -md <pack>
+    <provider> <model>') into the canonical 'remove pack <name>' / 'add
+    model ...' line `settings_commands.handle()` already understands.
+    Returns None (falls through to normal handling) if `words` doesn't
+    match this shape - also matches the already-canonical
+    'add pack <n>'/'remove model ...' spelling, so it's a strict
+    superset rather than a second competing grammar."""
+    if len(words) < 2:
+        return None
+    head = settings_commands.ALIASES.get(words[0].lower(), words[0].lower())
+    if head not in ("add", "remove"):
+        return None
+    kind = _SHORTHAND_KIND_FLAGS.get(words[1].lower())
+    if kind is None:
+        return None
+    return " ".join([head, kind, *words[2:]])
 
 # Stages where free text is being captured *verbatim on purpose* (a
 # tool-approval y/n, a hand-typed model id, a hand-typed new pack
@@ -100,6 +130,19 @@ GLOBAL_ALIASES = {
 # "help"/"-h" could never actually be typed as, say, a literal model
 # id. Same tradeoff already documented above for NAV_COMMANDS.
 _FREE_TEXT_STAGES = {"awaiting_approval", "wiz_model_custom", "wiz_pack_new"}
+
+
+class SelectableStatic(Static):
+    """`Static`, but explicit about wanting Textual's built-in
+    click-drag text selection turned on. `RichLog` (the old scrollback
+    widget) fundamentally can't support this - Textual only tracks
+    selectable spans for widgets that keep their rendered content
+    around, and `RichLog` deliberately doesn't (it's an append-only
+    write-once buffer). Every scrollback entry is now one of these,
+    mounted into the `#scrollback` `VerticalScroll` instead of written
+    into a `RichLog` - see `TesseractApp.write_log`."""
+
+    ALLOW_SELECT = True
 
 
 class TesseractApp(App):
@@ -143,7 +186,7 @@ class TesseractApp(App):
         event.text_area.styles.height = max(1, min(lines, 8))
 
     def compose(self) -> ComposeResult:
-        yield RichLog(id="scrollback", markup=True, wrap=True, highlight=False)
+        yield VerticalScroll(id="scrollback")
         yield Static("", id="status-line")
         yield Static("", id="mode-line")
         with Vertical(id="input-area"):
@@ -209,10 +252,12 @@ class TesseractApp(App):
 
         self.stage: str = "workspace"
         self._pack_return_stage: str = "chat"
+        self._workspace_return_stage: str = "chat"
         self._pack_choices: list[PackChoice] = []
         self._approval_event: asyncio.Event | None = None
         self._approval_result: bool = False
         self._wiz: dict[str, Any] = {}  # scratch state for the interactive 'suggest' wizard
+        self._turn_counter: int = 0  # backs each chat turn's unique echo-widget id
 
         self._print_banner()
         self.write_log("[dim]Working on:[/dim] " + str(Path.cwd()))
@@ -259,8 +304,19 @@ class TesseractApp(App):
     # log / status helpers
     # ------------------------------------------------------------------
 
-    def write_log(self, renderable: Any) -> None:
-        self.query_one("#scrollback", RichLog).write(renderable)
+    def write_log(self, renderable: Any, *, id: str | None = None) -> SelectableStatic:
+        """Mounts one new `SelectableStatic` per call instead of writing
+        into a shared `RichLog`. This is what makes mouse text-selection
+        work at all (see `SelectableStatic`), and as a side effect it
+        also means an entry can be found again by `id` and removed
+        later - which `run_agent_turn` uses to replace the "you typed
+        this" echo line with the final combined turn box once the
+        reply lands, instead of both staying in the log permanently."""
+        widget = SelectableStatic(renderable, id=id)
+        container = self.query_one("#scrollback", VerticalScroll)
+        container.mount(widget)
+        container.scroll_end(animate=False)
+        return widget
 
     def set_status(self, text: str) -> None:
         self.query_one("#status-line", Static).update(text)
@@ -299,17 +355,30 @@ class TesseractApp(App):
         except Exception as exc:  # noqa: BLE001 - intentional catch-all boundary
             self._report_error("Internal error", exc)
 
-    def _report_error(self, title: str, exc: Exception) -> None:
+    def _report_error(self, title: str, exc: Exception, *, user_text: str | None = None) -> None:
         import traceback
 
         tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        prefix = f"[bold cyan]›[/bold cyan] {user_text}\n\n" if user_text is not None else ""
         self.write_log(
             render_box(
                 title,
-                f"[red]{type(exc).__name__}: {exc}[/red]\n\n[dim]{tb.strip()}[/dim]",
+                f"{prefix}[red]{type(exc).__name__}: {exc}[/red]\n\n[dim]{tb.strip()}[/dim]",
                 style="red",
             )
         )
+
+    def _remove_echo(self, echo_id: str) -> None:
+        """Removes the lightweight, unboxed "you typed this" line
+        mounted right when the user hit Enter (see the chat branch of
+        `_route_input`), just before the merged turn box (input +
+        reply, or input + error) replaces it. Only possible because
+        the scrollback is now one widget per entry instead of a
+        write-once `RichLog` - see `SelectableStatic`/`write_log`."""
+        try:
+            self.query_one(f"#{echo_id}", SelectableStatic).remove()
+        except NoMatches:
+            pass
 
     def _route_input(self, event: ChatTextArea.Submitted) -> None:
         text = event.value
@@ -342,8 +411,30 @@ class TesseractApp(App):
                 self._navigate(global_cmd)
                 return
 
+            # Compound shorthand, usable from chat/home directly (settings
+            # already gets `_translate_compound_shorthand` applied to its
+            # own grammar below) - "-cfg model <pack>" switches the active
+            # pack without leaving chat, and "-rm -p <name>"/"add -md ..."
+            # reach add/remove pack/model without opening `settings` first.
+            if self.stage in {"chat", "home"}:
+                words = stripped.split()
+                first = words[0].lower()
+                if first in ("-cfg", "--config") and len(words) >= 2 and words[1].lower() == "model":
+                    self.write_log(f"[dim]›[/dim] {text}")
+                    self._handle_inline_model_switch(words[2:])
+                    return
+                translated = _translate_compound_shorthand(words)
+                if translated is not None:
+                    self.write_log(f"[dim]›[/dim] {text}")
+                    self.write_log(settings_commands.handle(self.config_manager, translated))
+                    return
+
         if self.stage == "workspace":
             self._handle_workspace_input(stripped)
+            return
+
+        if self.stage == "workspace_edit":
+            self._handle_workspace_edit_input(stripped)
             return
 
         if self.stage == "awaiting_approval":
@@ -371,6 +462,10 @@ class TesseractApp(App):
         if self.stage == "settings":
             self.write_log(f"[dim]›[/dim] {text}")
             words = stripped.split()
+            translated = _translate_compound_shorthand(words)
+            if translated is not None:
+                self.write_log(settings_commands.handle(self.config_manager, translated))
+                return
             first_word = words[0].lower()
             resolved_cmd = settings_commands.ALIASES.get(first_word, first_word)
             if resolved_cmd == "suggest" and len(words) == 1:
@@ -392,8 +487,10 @@ class TesseractApp(App):
             return
 
         # stage == "chat": a real message for the agent
-        self.write_log(f"[bold cyan]›[/bold cyan] {text}")
-        self.run_agent_turn(text)
+        self._turn_counter += 1
+        echo_id = f"turn-echo-{self._turn_counter}"
+        self.write_log(f"[bold cyan]›[/bold cyan] {text}", id=echo_id)
+        self.run_agent_turn(text, echo_id)
 
     def _navigate(self, command: str) -> None:
         if command == "chat":
@@ -410,6 +507,12 @@ class TesseractApp(App):
         elif command == "model":
             self._pack_return_stage = self.stage
             self.show_model_picker()
+        elif command == "workspace":
+            self._workspace_return_stage = self.stage
+            self.stage = "workspace_edit"
+            self.write_log("")
+            self.write_log(f"[bold]Current workspace:[/bold] {self.workspace_root}")
+            self.write_log("[bold]New workspace folder:[/bold] (type a path, or 'cancel')")
         elif command in ("exit", "quit"):
             self.exit()
         self._refresh_mode_line()
@@ -431,6 +534,31 @@ class TesseractApp(App):
         self._pack_return_stage = "chat"
         self._refresh_mode_line()
         self.show_model_picker()
+
+    def _handle_workspace_edit_input(self, text: str) -> None:
+        """Backs the `workspace`/`-ws` command: lets the workspace root
+        be changed later from chat/settings/home, reusing the same
+        validation as the first-run `_handle_workspace_input` above but
+        returning to wherever `workspace` was invoked from instead of
+        always cascading into the model picker (that cascade only makes
+        sense for the very first setup, not a later edit)."""
+        self.write_log(f"[dim]›[/dim] {text}")
+
+        if text.strip().lower() == "cancel":
+            self.write_log("[dim]— workspace unchanged —[/dim]")
+            self.stage = getattr(self, "_workspace_return_stage", "chat")
+            self._refresh_mode_line()
+            return
+
+        path = Path(text).expanduser().resolve()
+        if not path.exists() or not path.is_dir():
+            self.write_log(f"[red]not a valid directory: {path}[/red]")
+            return
+
+        self.workspace_root = path
+        self.write_log(f"[green]✓[/green] workspace set: {path}")
+        self.stage = getattr(self, "_workspace_return_stage", "chat")
+        self._refresh_mode_line()
 
     # ------------------------------------------------------------------
     # model pack picker (replaces ModelPickerScreen)
@@ -461,21 +589,17 @@ class TesseractApp(App):
         real terminal's `clear`/`cls` would. Re-prints the banner
         after, purely so clearing doesn't leave a totally blank screen
         with no sense of where you are."""
-        self.query_one("#scrollback", RichLog).clear()
+        self.query_one("#scrollback", VerticalScroll).remove_children()
         self._print_banner()
         self._refresh_mode_line()
 
     def _copy_last_reply(self) -> None:
-        """Backs the 'copy'/-c command. `RichLog` scrollback text can't
-        be mouse-selected the way a normal terminal buffer can - that's
-        a Textual limitation (the app owns mouse input for its
-        widgets), not a bug here. Two ways around it: (1) most terminal
-        emulators (Windows Terminal, iTerm2, kitty, Alacritty, WezTerm,
-        GNOME Terminal) let you hold Shift while dragging to select
-        text natively, bypassing the app entirely - no code involved;
-        (2) this command, which pushes the last agent reply to the
-        system clipboard over OSC 52 via Textual's own
-        `App.copy_to_clipboard`, which works even over SSH."""
+        """Backs the 'copy'/-c command. Scrollback text is now natively
+        mouse-selectable (see `SelectableStatic`), but this stays as a
+        one-shot fallback: it pushes the last agent reply straight to
+        the system clipboard over OSC 52 via Textual's own
+        `App.copy_to_clipboard`, which works even over SSH where
+        drag-select copies the remote pane, not the local clipboard."""
         if not self._last_agent_reply:
             self.write_log("[yellow]nothing to copy yet - no agent reply in this session.[/yellow]")
             return
@@ -489,27 +613,41 @@ class TesseractApp(App):
                 "select natively that way, bypassing the app."
             )
 
+    def _handle_inline_model_switch(self, args: list[str]) -> None:
+        """Backs `-cfg model [pack]` typed straight into chat/home. With
+        a name it's a direct one-shot switch (no picker, no leaving the
+        stage you're in); without one it falls back to the normal
+        `show_model_picker` picker, same as the bare `model` command."""
+        if not args:
+            self._pack_return_stage = self.stage
+            self.show_model_picker()
+            return
+        name = args[0]
+        if name in self.config_manager.config.providers:
+            self.selected_pack = name
+            self.write_log(f"[green]✓[/green] active pack: {name}")
+            self._refresh_mode_line()
+        else:
+            self.write_log(f"[red]no such pack: '{name}'.[/red] Try [bold]-p[/bold] to list packs.")
+
     def show_model_picker(self) -> None:
         """Mounts an inline, arrow-key navigable OptionList in place of
         the Input - not a separate screen. Removed again the moment a
-        choice is made (see `on_option_list_option_selected`)."""
+        choice is made (see `on_option_list_option_selected`).
+
+        Always includes "+ Add new pack" (chains into the existing
+        provider->model->pack `suggest` wizard, see `start_suggest_wizard`)
+        and "Cancel" (backs out untouched) - previously an empty pack
+        list was a dead end that told you to go type commands in
+        `settings` instead; now both paths are reachable from right
+        here, and picking nothing is always an option too."""
         self._pack_choices = load_pack_choices(self.config_manager)
 
-        if not self._pack_choices:
-            self.write_log("")
-            self.write_log(
-                "[red]no packs configured yet.[/red] Go to 'settings' and run "
-                "'add pack <name>' then 'add model <name> <provider> <model>' first."
-            )
-            self.stage = self._pack_return_stage
-            return
-
         self.stage = "model_pick"
-        self._mount_options(
-            [Option(choice.label, id=choice.name) for choice in self._pack_choices],
-            "Select a model pack",
-            list_id="pack-options",
-        )
+        options = [Option(choice.label, id=choice.name) for choice in self._pack_choices]
+        options.append(Option("+ Add new pack", id="__add_pack__"))
+        options.append(Option("Cancel", id="__cancel__"))
+        self._mount_options(options, "Select a model pack", list_id="pack-options")
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         try:
@@ -536,12 +674,28 @@ class TesseractApp(App):
         `await`s the removal before mounting whatever comes next, so
         the old one is guaranteed gone first."""
         if self.stage == "model_pick" and event.option_list.id == "pack-options":
-            chosen_name = event.option.id
+            chosen_id = event.option.id
             await event.option_list.remove()
-            self._restore_input()
 
-            self.selected_pack = chosen_name
-            self.write_log(f"[green]✓[/green] active pack: {chosen_name}")
+            if chosen_id == "__cancel__":
+                self._restore_input()
+                self.write_log("[dim]— cancelled, pack unchanged —[/dim]")
+                self.stage = self._pack_return_stage
+                self._refresh_mode_line()
+                return
+
+            if chosen_id == "__add_pack__":
+                # `_restore_input()` deliberately not called here - the
+                # suggest wizard mounts its own OptionList immediately
+                # (`start_suggest_wizard`), same as every other wizard
+                # step, so the input stays hidden until a free-text step
+                # (custom model id / new pack name) actually needs it.
+                self.start_suggest_wizard(activate=True, return_stage=self._pack_return_stage)
+                return
+
+            self._restore_input()
+            self.selected_pack = chosen_id
+            self.write_log(f"[green]✓[/green] active pack: {chosen_id}")
             self.stage = self._pack_return_stage
             self._refresh_mode_line()
             return
@@ -593,8 +747,16 @@ class TesseractApp(App):
     # `on_input_submitted` via the `wiz_model_custom`/`wiz_pack_new`
     # stages, since an OptionList can't take arbitrary text.
 
-    def start_suggest_wizard(self) -> None:
-        self._wiz = {}
+    def start_suggest_wizard(self, *, activate: bool = False, return_stage: str = "settings") -> None:
+        """`activate`/`return_stage` let this be reused by the model
+        picker's "+ Add new pack" option (see `_route_option_selected`):
+        the settings-stage `suggest` command still gets the original
+        behavior (activate=False, land back in settings), while a pack
+        created from the picker becomes the active pack right away and
+        returns to wherever `model` was invoked from - since picking
+        "add new pack" there means "I want to use this pack now", not
+        "file this away for later"."""
+        self._wiz = {"activate": activate, "return_stage": return_stage}
         self.stage = "wiz_provider"
         self._refresh_mode_line()
         options = [
@@ -633,6 +795,8 @@ class TesseractApp(App):
         model = self._wiz["model"]
         pack = self._wiz["pack"]
         target = self._wiz["target"]
+        activate = self._wiz.get("activate", False)
+        return_stage = self._wiz.get("return_stage", "settings")
 
         try:
             if self._wiz.get("pack_is_new"):
@@ -640,11 +804,14 @@ class TesseractApp(App):
             self.config_manager.packs.add_model(pack, provider, model, target=target)
             self.config_manager.save()
             self.write_log(f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target}).")
+            if activate:
+                self.selected_pack = pack
+                self.write_log(f"[green]✓[/green] active pack: {pack}")
         except ConfigError as exc:
             self.write_log(f"[red]{exc}[/red]")
 
         self._wiz = {}
-        self.stage = "settings"
+        self.stage = return_stage
         self._restore_input()
         self._refresh_mode_line()
 
@@ -653,7 +820,7 @@ class TesseractApp(App):
     # ------------------------------------------------------------------
 
     @work(exclusive=True)
-    async def run_agent_turn(self, user_text: str) -> None:
+    async def run_agent_turn(self, user_text: str, echo_id: str) -> None:
         """Previously a raised exception here (provider error, hitting
         INNER_LOOP_MAX_ITERATIONS, a rate-limit that survived the
         dispatcher's own fallback/retry, a tool crash) would propagate
@@ -662,7 +829,15 @@ class TesseractApp(App):
         app exits instead of just this one turn failing. Caught here
         now so a bad turn just prints an error and the user can keep
         chatting or fix their pack/config and retry, exactly the same
-        as any other command failure."""
+        as any other command failure.
+
+        `echo_id` is the lightweight, unboxed "you typed this" line
+        `_route_input` mounted the instant Enter was pressed (so typing
+        never feels like it went nowhere while the agent is still
+        "thinking"). Once the turn resolves - success or failure - that
+        line is removed and replaced by a single bordered box holding
+        both the original message and the outcome, so a finished turn
+        reads as one unit instead of two separate scrollback entries."""
         self.set_status("[dim]● thinking…[/dim]")
         try:
             reply = await run_inner_loop(
@@ -676,11 +851,14 @@ class TesseractApp(App):
             )
         except Exception as exc:  # noqa: BLE001 - agent-turn error boundary
             self.set_status("")
-            self._report_error("Agent turn failed", exc)
+            self._remove_echo(echo_id)
+            self._report_error("Agent turn failed", exc, user_text=user_text)
             return
         self.set_status("")
         self._last_agent_reply = reply
-        self.write_log(render_box("Agent", reply, style="#b98cff"))
+        self._remove_echo(echo_id)
+        body = f"[bold cyan]›[/bold cyan] {user_text}\n\n{reply}"
+        self.write_log(render_box("Agent", body, style="#b98cff"))
 
     # ------------------------------------------------------------------
     # tool approval (replaces ApprovalModal)
