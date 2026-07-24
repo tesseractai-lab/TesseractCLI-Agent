@@ -27,10 +27,17 @@ if TYPE_CHECKING:
     from tesseractcli.ui.app import TesseractApp
 
 GLOBAL_HELP_TEXT = (
+    "[bold #b98cff]Navigation[/bold #b98cff]\n"
     "  chat                                        go to the chat\n"
     "  settings         (-cfg, --config)            open settings\n"
     "  home                                         go to the home screen\n"
+    "  workspace        (-ws, --workspace)           change the workspace folder\n\n"
+    "[bold #4dd8ff]Model[/bold #4dd8ff]\n"
     "  model                                        pick a different model pack\n"
+    "                                                (also: '+ Add new pack' / 'Cancel' in the list)\n"
+    "  -cfg model [pack]                             switch pack without leaving chat\n"
+    "                                                (no pack name -> opens the picker instead)\n\n"
+    "[bold #4ddb9e]Utility[/bold #4ddb9e]\n"
     "  copy             (-c)                        copy the last agent reply\n"
     "  clear            (-cl, --clear, cls)          clear the terminal\n"
     "  help             (-h, --help, ?)              show this help\n"
