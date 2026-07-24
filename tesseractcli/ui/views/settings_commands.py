@@ -20,6 +20,7 @@ Grammar (bare words, case-insensitive first token):
     remove model <pack> <provider> <model> [fallback]
     set <dot.path> <value>                   edit any scalar config value
     get <dot.path>                           read any scalar config value
+    yaml                                     view the raw global_config.yaml (read-only)
 
 `set`/`get` use the same dot-notation as `ConfigManager.get`/`.set`
 (e.g. `paths.logs_dir`, `agent.temperature`,
@@ -62,6 +63,7 @@ COMMAND_CHOICES: list[str] = [
     "remove model ",
     "set ",
     "get ",
+    "yaml",
     "backup",
     "backups",
     "restore",
@@ -95,22 +97,30 @@ ALIASES: dict[str, str] = {
 }
 
 HELP_TEXT = (
+    "[bold #4dd8ff]Packs & models[/bold #4dd8ff]\n"
     "  packs            (-p, ls-p)             list packs and their models\n"
     "  pack <name>                                show one pack in detail\n"
-    "  suggest          (-s)                     provider/model suggestions\n"
+    "  suggest          (-s)                     provider/model suggestions,\n"
+    "                                             interactive picker (also: 'model' outside settings)\n"
     "  add pack <name>                             create a new empty pack\n"
     "  remove pack <name>                          delete a pack\n"
     "  add model <pack> <provider> <model> [fallback]\n"
     "  remove model <pack> <provider> <model> [fallback]\n"
+    "  shorthand: -a/-rm + -p (pack) or -md (model), e.g. [bold]-rm -p mypack[/bold]\n\n"
+    "[bold #e8a33d]Config values[/bold #e8a33d]\n"
     "  set <dot.path> <value>                      edit a config value\n"
-    "  get <dot.path>                              read a config value\n"
-    "  backup                                      snapshot the config now\n"
-    "  backups                                     list saved backups\n"
-    "  restore [latest|<file>]                     roll back to a backup\n"
-    "  validate                                    check config against schema\n"
-    "  chat                                        return to chat\n"
-    "  help             (-h, --help, ?)              show this list\n"
-    "  exit             (-q, --quit)                quit TesseractCLI\n\n"
+    "  get <dot.path>                               read a config value\n"
+    "  yaml                                         view the raw global_config.yaml (read-only)\n\n"
+    "[bold #4ddb9e]Backups[/bold #4ddb9e]\n"
+    "  backup                                       snapshot the config now\n"
+    "  backups                                      list saved backups\n"
+    "  restore [latest|<file>]                       roll back to a backup\n"
+    "  validate                                      check config against schema\n\n"
+    "[bold #b98cff]Navigation[/bold #b98cff]\n"
+    "  chat                                          return to chat\n"
+    "  workspace        (-ws, --workspace)             change the workspace folder\n"
+    "  help             (-h, --help, ?)                show this list\n"
+    "  exit             (-q, --quit)                  quit TesseractCLI\n\n"
     "[dim]remove pack/model always asks for '... confirm' before deleting,\n"
     "and takes a backup first - nothing is a one-way door.[/dim]"
 )
@@ -240,6 +250,7 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
             target = "fallback" if len(parts) >= 6 and parts[5].lower() == "fallback" else "pool"
             manager.packs.add_model(pack, provider, model, target=target)
             manager.save()
+            # manager.
             return render_box("Model added", f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target}).")
 
         if cmd == "remove" and len(parts) >= 5 and parts[1].lower() == "model":
@@ -276,6 +287,9 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
             value = manager.get(path)
             return render_box("Value", f"{path} = {value}")
 
+        if cmd in ("yaml", "raw"):
+            return _render_raw_yaml(manager)
+
         if cmd == "backup":
             path = manager.backup()
             return render_box("Backup created", f"[green]✓[/green] {path}")
@@ -299,6 +313,24 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
 
 def _backup_dir(manager: "ConfigManager") -> "Any":
     return manager.config_path.parent / "backups"
+
+
+def _render_raw_yaml(manager: "ConfigManager") -> Any:
+    """Backs the read-only 'yaml'/'raw' command: dumps
+    `global_config.yaml` exactly as it is on disk. Deliberately
+    read-only - actual edits still go through `set`/`get` (dot-path,
+    schema-validated on save) or the pack/model commands above, rather
+    than a free-form text editor that could save invalid YAML. Content
+    is markup-escaped since a raw YAML file can contain literal `[`/`]`
+    (list syntax) that would otherwise be misread as Rich markup."""
+    from rich.markup import escape
+
+    try:
+        content = manager.config_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return render_box("global_config.yaml", f"[red]couldn't read {manager.config_path}: {exc}[/red]", style="red")
+    body = f"[dim]{manager.config_path}[/dim]\n\n{escape(content).rstrip()}"
+    return render_box("global_config.yaml (read-only - use 'set'/'get' to edit)", body)
 
 
 def _list_backups(manager: "ConfigManager") -> str:
