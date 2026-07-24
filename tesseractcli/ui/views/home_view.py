@@ -9,17 +9,19 @@ a short status + command list, written as a plain block into the
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from tesseractcli.config.settings import get_settings
 
 if TYPE_CHECKING:
     from tesseractcli.ui.app import TesseractApp
 
 
 def render_home(app: "TesseractApp") -> str:
+    version = get_settings().APP_VERSION
     workspace = app.workspace_root or "[dim](not set)[/dim]"
     pack = app.selected_pack or "[dim](not set)[/dim]"
 
     return (
-        "[bold]TesseractCLI[/bold]\n"
+        f"[bold]TesseractCLI[/bold] {version}\n"
         f"  Workspace   {workspace}\n"
         f"  Active pack {pack}\n\n"
         "[bold]Commands[/bold]\n"
