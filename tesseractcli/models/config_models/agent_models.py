@@ -20,3 +20,4 @@ class AgentConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_iterations: int = Field(default=10, ge=1)
     timeout_seconds: int = Field(default=120, ge=1)
+    max_context_messages: int = Field(default=40, ge=1)

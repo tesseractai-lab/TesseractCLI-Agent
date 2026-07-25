@@ -42,6 +42,16 @@ class RoutingResolver:
         self._manager = manager
         self._default_pack = default_pack
 
+    @property
+    def manager(self) -> ConfigManager:
+        """Public read access to the bound ConfigManager - e.g. so
+        `llm/dispatcher.py` can read `agent.*` settings live (same
+        never-cache-it principle `resolve()` already applies to packs
+        below: every read goes straight to the manager's current
+        config, so a `set agent.max_context_messages ...` in the TUI
+        settings screen takes effect on the very next turn)."""
+        return self._manager
+
     def resolve(self, pack_name: str | None) -> ModelPack:
         """Return the ModelPack for `pack_name`.
 

@@ -7,7 +7,7 @@ the model on every loop iteration" problem via its internal cache).
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, ToolMessage
 
 from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.logger import logger
@@ -50,9 +50,25 @@ class LLMDispatcher:
         "google": GoogleProvider,
     }
 
-    def __init__(self, resolver: RoutingResolver | None = None) -> None:
+    def __init__(
+        self,
+        resolver: RoutingResolver | None = None,
+        max_context_messages: int | None = None,
+    ) -> None:
         self.resolver = resolver or get_routing_resolver()
         self._providers: dict[str, BaseLLMProvider] = {}
+        # None (the default) means "read `agent.max_context_messages`
+        # live off the resolver's ConfigManager every call" - so
+        # `set agent.max_context_messages <n>` in the TUI settings
+        # screen takes effect immediately, no restart needed. Pass an
+        # explicit int to pin it instead (e.g. in tests).
+        self._max_context_messages_override = max_context_messages
+
+    @property
+    def max_context_messages(self) -> int:
+        if self._max_context_messages_override is not None:
+            return self._max_context_messages_override
+        return self.resolver.manager.config.agent.max_context_messages
 
     def _get_provider(self, name: str) -> BaseLLMProvider:
         if name not in self._PROVIDER_REGISTRY:
@@ -135,6 +151,7 @@ class LLMDispatcher:
         pack = self._pack_for(pack_name)
         steps = [*pack.pool, *pack.fallback]
         last_error: Exception | None = None
+        messages = self._window_messages(messages, self.max_context_messages)
 
         for step in steps:
             provider = self._get_provider(step.provider)
@@ -231,6 +248,29 @@ class LLMDispatcher:
     def _looks_like_rate_limit_error(error: Exception) -> bool:
         text = str(error).lower()
         return any(marker in text for marker in _RATE_LIMIT_SIZE_MARKERS)
+
+    @staticmethod
+    def _window_messages(
+        messages: list[BaseMessage], max_messages: int
+    ) -> list[BaseMessage]:
+        """Keeps only the most recent `max_messages` messages before
+        sending to the model - a stopgap for unbounded context/token
+        growth until real summarization/compaction exists. Nothing is
+        deleted from the caller's list or from `conversation.db`; this
+        only shrinks what actually gets sent on THIS call.
+
+        Never starts the window on a ToolMessage: cutting between an
+        AIMessage's tool_calls and its ToolMessage response would send
+        an orphaned tool result with no matching call, which every
+        provider rejects as an invalid request.
+        """
+        if len(messages) <= max_messages:
+            return messages
+
+        start = len(messages) - max_messages
+        while start < len(messages) and isinstance(messages[start], ToolMessage):
+            start += 1
+        return messages[start:]
 
     @staticmethod
     def _truncate_messages(

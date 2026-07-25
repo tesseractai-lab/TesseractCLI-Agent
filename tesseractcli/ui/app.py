@@ -42,6 +42,7 @@ from tesseractcli.agent.loop import run_inner_loop
 from tesseractcli.config.global_config.manager import ConfigManager
 from tesseractcli.config.provider_catalog import PROVIDER_CATALOG
 from tesseractcli.llm.dispatcher import LLMDispatcher
+from tesseractcli.llm.routing import RoutingResolver
 from tesseractcli.memory.store import ConversationStore, PersistentMessageList
 from tesseractcli.models.exceptions import ConfigError
 from tesseractcli.tools.registry_builder import build_registry
@@ -238,13 +239,24 @@ class TesseractApp(App):
         # Shared state, built once - same as the old on_mount, just no
         # longer paired with `self.push_screen(WelcomeScreen())`.
         self.tool_registry = build_registry()
-        self.dispatcher = LLMDispatcher()
         # The single source of truth for global_config.yaml (packs,
         # models, paths, agent defaults). `render_settings`,
         # `settings_commands.handle`, and `load_pack_choices` all read
         # and write through this one instance - nothing in the UI talks
         # to the YAML file or `config/settings.py` directly.
+        #
+        # Built BEFORE the dispatcher, and handed to it explicitly via
+        # RoutingResolver(self.config_manager) - NOT LLMDispatcher()
+        # with no args, which would call get_routing_resolver() and
+        # construct a SECOND, separate ConfigManager() of its own.
+        # ConfigManager.config caches in memory rather than re-reading
+        # the file on every access, so two instances silently diverge:
+        # `set agent.max_context_messages ...` in the settings screen
+        # would mutate this instance while the dispatcher kept reading
+        # its own stale copy forever. One shared instance is what makes
+        # the "live config" behavior actually true.
         self.config_manager = ConfigManager()
+        self.dispatcher = LLMDispatcher(RoutingResolver(self.config_manager))
         self._load_config_safely()
         self.workspace_root: Path | None = None
         self.selected_pack: str | None = None
