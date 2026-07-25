@@ -162,7 +162,8 @@ class LLMDispatcher:
                 continue
 
             try:
-                return await model.ainvoke(messages)
+                result = await model.ainvoke(messages)
+                return self._stamp_attribution(result, step, pack_name, pack)
             except Exception as e:  # noqa: BLE001 - intentional: any failure -> try next
                 if not self._looks_like_rate_limit_error(e):
                     last_error = e
@@ -177,7 +178,8 @@ class LLMDispatcher:
                 )
                 truncated = self._truncate_messages(messages)
                 try:
-                    return await model.ainvoke(truncated)
+                    result = await model.ainvoke(truncated)
+                    return self._stamp_attribution(result, step, pack_name, pack)
                 except Exception as e2:  # noqa: BLE001
                     last_error = e2
                     logger.error(
@@ -191,6 +193,31 @@ class LLMDispatcher:
         raise RuntimeError(
             f"All routing steps exhausted for pack '{pack_name}'"
         ) from last_error
+
+    @staticmethod
+    def _stamp_attribution(
+        message: BaseMessage, step: ModelConfig, pack_name: str | None, pack: ModelPack
+    ) -> BaseMessage:
+        """Records which provider/model/pack/hyperparameters actually
+        produced this reply under `response_metadata` - raw provider
+        `response_metadata` shapes aren't consistent across all 11
+        providers, so this is the one normalized source
+        `memory/store.py` reads from to populate the `model_meta` table
+        (model_name, pack_name, temperature, max_tokens). Token counts
+        (input/output) are NOT stamped here - they already live on
+        `message.usage_metadata` as a standard LangChain attribute when
+        a provider reports them, so `memory/store.py` reads that
+        directly instead of duplicating it into `response_metadata`."""
+        message.response_metadata = {
+            **(message.response_metadata or {}),
+            "tesseract_provider": step.provider,
+            "tesseract_model": step.model,
+            "tesseract_pack_name": pack_name,
+            "tesseract_temperature": pack.temperature,
+            "tesseract_max_tokens": pack.max_tokens,
+        }
+        return message
+
 
     @staticmethod
     def _primary_of(pack: ModelPack, pack_name: str | None) -> ModelConfig:

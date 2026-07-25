@@ -42,6 +42,7 @@ from tesseractcli.agent.loop import run_inner_loop
 from tesseractcli.config.global_config.manager import ConfigManager
 from tesseractcli.config.provider_catalog import PROVIDER_CATALOG
 from tesseractcli.llm.dispatcher import LLMDispatcher
+from tesseractcli.memory.store import ConversationStore, PersistentMessageList
 from tesseractcli.models.exceptions import ConfigError
 from tesseractcli.tools.registry_builder import build_registry
 from tesseractcli.ui.views import settings_commands
@@ -247,7 +248,9 @@ class TesseractApp(App):
         self._load_config_safely()
         self.workspace_root: Path | None = None
         self.selected_pack: str | None = None
-        self.messages: list = []  # BaseMessage list, mutated in place by run_inner_loop
+        self.messages = PersistentMessageList()  # BaseMessage list, mutated in place by run_inner_loop
+        # unbound until a workspace is picked (see _handle_workspace_input /
+        # _handle_workspace_edit_input) - every append() persists once bound
         self._last_agent_reply: str = ""  # backs the 'copy'/-c command
 
         self.stage: str = "workspace"
@@ -279,6 +282,15 @@ class TesseractApp(App):
         self.query_one("#main-input", ChatTextArea).value = str(Path.cwd())
         self.query_one("#main-input", ChatTextArea).focus()
         self._refresh_mode_line()
+
+    def on_unmount(self) -> None:
+        """Textual lifecycle hook, runs once on app exit (normal quit,
+        not a crash). Closes the bound ConversationStore's sqlite
+        connection cleanly - not required for data safety (every saved
+        message already commits immediately) but avoids leaving the fd
+        open until the OS reclaims it. Safe no-op if a workspace was
+        never picked (self.messages is unbound)."""
+        self.messages.close()
 
     def _load_config_safely(self) -> None:
         """`config_manager.load()` raises `InvalidConfigError` on a
@@ -530,6 +542,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self._pack_return_stage = "chat"
         self._refresh_mode_line()
@@ -556,6 +569,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self.stage = getattr(self, "_workspace_return_stage", "chat")
         self._refresh_mode_line()

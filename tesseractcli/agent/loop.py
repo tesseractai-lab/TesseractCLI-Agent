@@ -151,6 +151,11 @@ async def run_inner_loop(
                 ToolMessage(
                     content=_format_tool_result(result),
                     tool_call_id=call_id,
+                    additional_kwargs={
+                        "tool_name": name,
+                        "tool_args": args,
+                        "tool_success": result.success,
+                    },
                 )
             )
 
