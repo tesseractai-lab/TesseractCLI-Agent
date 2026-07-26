@@ -42,6 +42,8 @@ from tesseractcli.agent.loop import run_inner_loop
 from tesseractcli.config.global_config.manager import ConfigManager
 from tesseractcli.config.provider_catalog import PROVIDER_CATALOG
 from tesseractcli.llm.dispatcher import LLMDispatcher
+from tesseractcli.llm.routing import RoutingResolver
+from tesseractcli.memory.store import ConversationStore, PersistentMessageList
 from tesseractcli.models.exceptions import ConfigError
 from tesseractcli.tools.registry_builder import build_registry
 from tesseractcli.ui.views import settings_commands
@@ -237,17 +239,30 @@ class TesseractApp(App):
         # Shared state, built once - same as the old on_mount, just no
         # longer paired with `self.push_screen(WelcomeScreen())`.
         self.tool_registry = build_registry()
-        self.dispatcher = LLMDispatcher()
         # The single source of truth for global_config.yaml (packs,
         # models, paths, agent defaults). `render_settings`,
         # `settings_commands.handle`, and `load_pack_choices` all read
         # and write through this one instance - nothing in the UI talks
         # to the YAML file or `config/settings.py` directly.
+        #
+        # Built BEFORE the dispatcher, and handed to it explicitly via
+        # RoutingResolver(self.config_manager) - NOT LLMDispatcher()
+        # with no args, which would call get_routing_resolver() and
+        # construct a SECOND, separate ConfigManager() of its own.
+        # ConfigManager.config caches in memory rather than re-reading
+        # the file on every access, so two instances silently diverge:
+        # `set agent.max_context_messages ...` in the settings screen
+        # would mutate this instance while the dispatcher kept reading
+        # its own stale copy forever. One shared instance is what makes
+        # the "live config" behavior actually true.
         self.config_manager = ConfigManager()
+        self.dispatcher = LLMDispatcher(RoutingResolver(self.config_manager))
         self._load_config_safely()
         self.workspace_root: Path | None = None
         self.selected_pack: str | None = None
-        self.messages: list = []  # BaseMessage list, mutated in place by run_inner_loop
+        self.messages = PersistentMessageList()  # BaseMessage list, mutated in place by run_inner_loop
+        # unbound until a workspace is picked (see _handle_workspace_input /
+        # _handle_workspace_edit_input) - every append() persists once bound
         self._last_agent_reply: str = ""  # backs the 'copy'/-c command
 
         self.stage: str = "workspace"
@@ -279,6 +294,15 @@ class TesseractApp(App):
         self.query_one("#main-input", ChatTextArea).value = str(Path.cwd())
         self.query_one("#main-input", ChatTextArea).focus()
         self._refresh_mode_line()
+
+    def on_unmount(self) -> None:
+        """Textual lifecycle hook, runs once on app exit (normal quit,
+        not a crash). Closes the bound ConversationStore's sqlite
+        connection cleanly - not required for data safety (every saved
+        message already commits immediately) but avoids leaving the fd
+        open until the OS reclaims it. Safe no-op if a workspace was
+        never picked (self.messages is unbound)."""
+        self.messages.close()
 
     def _load_config_safely(self) -> None:
         """`config_manager.load()` raises `InvalidConfigError` on a
@@ -530,6 +554,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self._pack_return_stage = "chat"
         self._refresh_mode_line()
@@ -556,6 +581,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self.stage = getattr(self, "_workspace_return_stage", "chat")
         self._refresh_mode_line()

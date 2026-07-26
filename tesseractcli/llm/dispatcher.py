@@ -7,7 +7,7 @@ the model on every loop iteration" problem via its internal cache).
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, ToolMessage
 
 from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.logger import logger
@@ -50,9 +50,25 @@ class LLMDispatcher:
         "google": GoogleProvider,
     }
 
-    def __init__(self, resolver: RoutingResolver | None = None) -> None:
+    def __init__(
+        self,
+        resolver: RoutingResolver | None = None,
+        max_context_messages: int | None = None,
+    ) -> None:
         self.resolver = resolver or get_routing_resolver()
         self._providers: dict[str, BaseLLMProvider] = {}
+        # None (the default) means "read `agent.max_context_messages`
+        # live off the resolver's ConfigManager every call" - so
+        # `set agent.max_context_messages <n>` in the TUI settings
+        # screen takes effect immediately, no restart needed. Pass an
+        # explicit int to pin it instead (e.g. in tests).
+        self._max_context_messages_override = max_context_messages
+
+    @property
+    def max_context_messages(self) -> int:
+        if self._max_context_messages_override is not None:
+            return self._max_context_messages_override
+        return self.resolver.manager.config.agent.max_context_messages
 
     def _get_provider(self, name: str) -> BaseLLMProvider:
         if name not in self._PROVIDER_REGISTRY:
@@ -135,6 +151,7 @@ class LLMDispatcher:
         pack = self._pack_for(pack_name)
         steps = [*pack.pool, *pack.fallback]
         last_error: Exception | None = None
+        messages = self._window_messages(messages, self.max_context_messages)
 
         for step in steps:
             provider = self._get_provider(step.provider)
@@ -162,7 +179,8 @@ class LLMDispatcher:
                 continue
 
             try:
-                return await model.ainvoke(messages)
+                result = await model.ainvoke(messages)
+                return self._stamp_attribution(result, step, pack_name, pack)
             except Exception as e:  # noqa: BLE001 - intentional: any failure -> try next
                 if not self._looks_like_rate_limit_error(e):
                     last_error = e
@@ -177,7 +195,8 @@ class LLMDispatcher:
                 )
                 truncated = self._truncate_messages(messages)
                 try:
-                    return await model.ainvoke(truncated)
+                    result = await model.ainvoke(truncated)
+                    return self._stamp_attribution(result, step, pack_name, pack)
                 except Exception as e2:  # noqa: BLE001
                     last_error = e2
                     logger.error(
@@ -193,6 +212,31 @@ class LLMDispatcher:
         ) from last_error
 
     @staticmethod
+    def _stamp_attribution(
+        message: BaseMessage, step: ModelConfig, pack_name: str | None, pack: ModelPack
+    ) -> BaseMessage:
+        """Records which provider/model/pack/hyperparameters actually
+        produced this reply under `response_metadata` - raw provider
+        `response_metadata` shapes aren't consistent across all 11
+        providers, so this is the one normalized source
+        `memory/store.py` reads from to populate the `model_meta` table
+        (model_name, pack_name, temperature, max_tokens). Token counts
+        (input/output) are NOT stamped here - they already live on
+        `message.usage_metadata` as a standard LangChain attribute when
+        a provider reports them, so `memory/store.py` reads that
+        directly instead of duplicating it into `response_metadata`."""
+        message.response_metadata = {
+            **(message.response_metadata or {}),
+            "tesseract_provider": step.provider,
+            "tesseract_model": step.model,
+            "tesseract_pack_name": pack_name,
+            "tesseract_temperature": pack.temperature,
+            "tesseract_max_tokens": pack.max_tokens,
+        }
+        return message
+
+
+    @staticmethod
     def _primary_of(pack: ModelPack, pack_name: str | None) -> ModelConfig:
         """First model in the pack's pool - used by the single-model
         getters (get_llm / get_llm_with_tools), which don't walk fallback."""
@@ -204,6 +248,29 @@ class LLMDispatcher:
     def _looks_like_rate_limit_error(error: Exception) -> bool:
         text = str(error).lower()
         return any(marker in text for marker in _RATE_LIMIT_SIZE_MARKERS)
+
+    @staticmethod
+    def _window_messages(
+        messages: list[BaseMessage], max_messages: int
+    ) -> list[BaseMessage]:
+        """Keeps only the most recent `max_messages` messages before
+        sending to the model - a stopgap for unbounded context/token
+        growth until real summarization/compaction exists. Nothing is
+        deleted from the caller's list or from `conversation.db`; this
+        only shrinks what actually gets sent on THIS call.
+
+        Never starts the window on a ToolMessage: cutting between an
+        AIMessage's tool_calls and its ToolMessage response would send
+        an orphaned tool result with no matching call, which every
+        provider rejects as an invalid request.
+        """
+        if len(messages) <= max_messages:
+            return messages
+
+        start = len(messages) - max_messages
+        while start < len(messages) and isinstance(messages[start], ToolMessage):
+            start += 1
+        return messages[start:]
 
     @staticmethod
     def _truncate_messages(
