@@ -29,3 +29,6 @@ agent:
   timeout_seconds: 120
   max_context_messages: 40
 
+verbose:
+  errors: false
+
