@@ -6,7 +6,8 @@ Sends messages + tool schemas to the model, prints and approves any
 tool_use request, dispatches it through the registry, feeds the
 ToolResult back as a ToolMessage (matched by tool_call_id), and
 repeats until the model replies with no tool_calls (final answer) or
-until INNER_LOOP_MAX_ITERATIONS is hit.
+until `agent.max_iterations` (read live off the dispatcher's shared
+ConfigManager, see llm/dispatcher.py) is hit.
 
 This is NOT the outer session loop (waiting on repeated user input) -
 that's a separate, later concern (owned by the TUI / CLI entrypoint).
@@ -43,7 +44,6 @@ from typing import Awaitable, Callable, TypeAlias
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from tesseractcli.config.logger import logger
-from tesseractcli.config.settings import get_settings
 from tesseractcli.llm.dispatcher import LLMDispatcher
 from tesseractcli.models.tool_models.tools_result import ToolResult
 from tesseractcli.tools.approval import approve_tool_call
@@ -95,6 +95,7 @@ async def run_inner_loop(
     workspace_root: Path,
     name_pack: str | None = "main_pack",
     approve_fn: ApproveFn = _default_approve_fn,
+    pinned_model: tuple[str, str] | None = None,
 ) -> str:
     """Runs one full agent turn for `user_input`. Returns the model's
     final text reply. Mutates `messages` in place (appends the human
@@ -105,9 +106,15 @@ async def run_inner_loop(
     "third_pack" - see `llm/routing.py`'s RoutingResolver), NOT a raw
     provider/model pair. `approve_fn` defaults to the terminal prompt;
     pass a UI-backed one (e.g. Textual's modal) to override it.
+
+    `pinned_model`, if given, is a (provider, model) pair the caller
+    explicitly selected out of `name_pack`'s pool/fallback - every model
+    call in this turn uses exactly that entry (still with the same
+    rate-limit-triggered truncate-and-retry-once as any other step), and
+    never silently falls back to a different model. Leave it as None to
+    keep the original "walk pool then fallback" behavior.
     """
-    settings = get_settings()
-    max_iterations = settings.INNER_LOOP_MAX_ITERATIONS
+    max_iterations = dispatcher.max_iterations
 
     messages.append(HumanMessage(content=user_input))
 
@@ -115,7 +122,7 @@ async def run_inner_loop(
 
     for _ in range(max_iterations):
         ai_message: AIMessage = await dispatcher.ainvoke_with_fallback(
-            messages, tools=tool_defs, pack_name=name_pack
+            messages, tools=tool_defs, pack_name=name_pack, pinned=pinned_model
         )
         messages.append(ai_message)
 
@@ -160,7 +167,7 @@ async def run_inner_loop(
             )
 
     logger.warning(
-        "Inner loop hit INNER_LOOP_MAX_ITERATIONS (%d) without a final reply",
+        "Inner loop hit agent.max_iterations (%d) without a final reply",
         max_iterations,
     )
     return f"[stopped after {max_iterations} iterations without a final answer - check the log]"

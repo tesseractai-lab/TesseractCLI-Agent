@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from tesseractcli.models.tool_models import ToolResult, WriteFileMetadata, WriteFileArgs
-from tesseractcli.models.exceptions import PathEscapesWorkspaceError
+from tesseractcli.models.exceptions import PathEscapesWorkspaceError, SensitiveFileBlocked
 from tesseractcli.tools.sandbox import safe_open, resolve_in_workspace, atomic_write
 from tesseractcli.tools.registry import ToolRegistry
 
@@ -49,6 +49,8 @@ def write_file(
         return ToolResult(tool_name="write_file", success=True, output="", metadata=metadata)
 
     except PathEscapesWorkspaceError as e:
+        return ToolResult(tool_name="write_file", success=False, output="", error=str(e))
+    except SensitiveFileBlocked as e:
         return ToolResult(tool_name="write_file", success=False, output="", error=str(e))
     except PermissionError:
         return ToolResult(tool_name="write_file", success=False, output="",

@@ -61,6 +61,7 @@ COMMAND_CHOICES: list[str] = [
     "add model ",
     "remove pack ",
     "remove model ",
+    "rename pack ",
     "set ",
     "get ",
     "yaml",
@@ -94,37 +95,56 @@ ALIASES: dict[str, str] = {
     "-a": "add",
     "-rm": "remove",
     "-r": "remove",
+    "-rn": "rename",
 }
 
 HELP_TEXT = (
-    "[bold #4dd8ff]Packs & models[/bold #4dd8ff]\n"
-    "  packs            (-p, ls-p)             list packs and their models\n"
-    "  pack <name>                                show one pack in detail\n"
-    "  suggest          (-s)                     provider/model suggestions,\n"
-    "                                             interactive picker (also: 'model' outside settings)\n"
-    "  add pack <name>                             create a new empty pack\n"
-    "  remove pack <name>                          delete a pack\n"
+    "[bold #89DCEB]Packs & Models[/bold #89DCEB]\n"
+    "  Command                              Description                     Alias\n"
+    "  ───────────────────────────────────  ──────────────────────────────  ─────────────\n"
+    "  packs                                List all packs                 -p, ls-p\n"
+    "  pack <name>                          Show pack details              -\n"
+    "  suggest                              Browse model suggestions       -s\n"
+    "  add pack <name>                      Create a new pack              -a -p <name>\n"
+    "  remove pack <name>                   Delete a pack                  -rm -p <name>\n"
+    "  rename pack <old> <new>              Rename a pack                  -rn\n"
     "  add model <pack> <provider> <model> [fallback]\n"
+    "                                       Add a model to a pack\n"
     "  remove model <pack> <provider> <model> [fallback]\n"
-    "  shorthand: -a/-rm + -p (pack) or -md (model), e.g. [bold]-rm -p mypack[/bold]\n\n"
-    "[bold #e8a33d]Config values[/bold #e8a33d]\n"
-    "  set <dot.path> <value>                      edit a config value\n"
-    "  get <dot.path>                               read a config value\n"
-    "  yaml                                         view the raw global_config.yaml (read-only)\n\n"
-    "[bold #4ddb9e]Backups[/bold #4ddb9e]\n"
-    "  backup                                       snapshot the config now\n"
-    "  backups                                      list saved backups\n"
-    "  restore [latest|<file>]                       roll back to a backup\n"
-    "  validate                                      check config against schema\n\n"
-    "[bold #b98cff]Navigation[/bold #b98cff]\n"
-    "  chat                                          return to chat\n"
-    "  workspace        (-ws, --workspace)             change the workspace folder\n"
-    "  help             (-h, --help, ?)                show this list\n"
-    "  exit             (-q, --quit)                  quit TesseractCLI\n\n"
-    "[dim]remove pack/model always asks for '... confirm' before deleting,\n"
-    "and takes a backup first - nothing is a one-way door.[/dim]"
-)
+    "                                       Remove a model from a pack\n"
+    "  -a / -rm + -p | -md 'model'          Command shortcuts\n\n"
 
+    "[bold #A6E3A1]Configuration[/bold #A6E3A1]\n"
+    "  Command                              Description\n"
+    "  ───────────────────────────────────  ──────────────────────────────\n"
+    "  set <dot.path> <value>               Update a configuration value\n"
+    "  get <dot.path>                       Read a configuration value\n"
+    "  yaml                                 View global_config.yaml\n\n"
+
+    "[bold #CBA6F7]Backups[/bold #CBA6F7]\n"
+    "  Command                              Description\n"
+    "  ───────────────────────────────────  ──────────────────────────────\n"
+    "  backup                               Create a configuration backup\n"
+    "  backups                              List available backups\n"
+    "  restore <latest|file>                Restore a backup\n"
+    "  validate                             Validate configuration\n\n"
+
+    "[bold #F9E2AF]General[/bold #F9E2AF]\n"
+    "  Command                              Description                     Alias\n"
+    "  ───────────────────────────────────  ──────────────────────────────  ─────────────\n"
+    "  workspace                            Change workspace               -ws, --workspace\n"
+    "  chat                                 Return to chat                  \n"
+    "  help                                 Show this help                 -h, --help, ?\n"
+    "  exit                                 Quit TesseractCLI              -q, --quit\n\n"
+
+    "[dim]"
+    "Notes\n"
+    "─────\n"
+    "• Deleting a pack or model always asks for confirmation.\n"
+    "• A backup is automatically created before any delete operation.\n"
+    "• Restore any previous configuration from the Backups section."
+    "[/dim]"
+)
 
 def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
     """Each pack gets its own header color (cycled from `_PACK_PALETTE`
@@ -159,7 +179,8 @@ def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
 # separate, fixed color family (see `_format_pack`) shared by every
 # pack, so "this is a pool entry" reads the same way in every pack
 # rather than shifting color depending on which pack it's in.
-_PACK_PALETTE = ["#4dd8ff", "#b98cff", "#ff6b9d", "#6bcaff", "#e8a33d", "#4ddb9e"]
+_PACK_PALETTE = ["#b98cff"]
+# _PACK_PALETTE = ["#4dd8ff", "#b98cff", "#ff6b9d", "#6bcaff", "#e8a33d", "#4ddb9e"]
 _POOL_COLORS = ("#4ddb9e", "#a8f2d4")      # pool (primary): green / light green
 _FALLBACK_COLORS = ("#e8a33d", "#f5cf94")  # fallback: amber / light amber
 
@@ -243,6 +264,15 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
                 "Pack removed",
                 f"[green]✓[/green] removed pack '{name}'.\n"
                 "[dim]A backup was taken first - run 'restore' if this was a mistake.[/dim]",
+            )
+
+        if cmd == "rename" and len(parts) >= 4 and parts[1].lower() == "pack":
+            old_name, new_name = parts[2], parts[3]
+            manager.packs.rename_pack(old_name, new_name)
+            manager.save()
+            return render_box(
+                "Pack renamed",
+                f"[green]✓[/green] '{old_name}' → '{new_name}'.",
             )
 
         if cmd == "add" and len(parts) >= 5 and parts[1].lower() == "model":

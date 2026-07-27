@@ -134,6 +134,25 @@ def _translate_compound_shorthand(words: list[str]) -> str | None:
 _FREE_TEXT_STAGES = {"awaiting_approval", "wiz_model_custom", "wiz_pack_new"}
 
 
+
+
+def _truncate_path_display(path: Path | None, *, max_parts: int = 2) -> str:
+    """Display a shortened workspace path.
+
+    Examples:
+        G:\foo\bar\Project\tests -> ~\Project\tests
+        G:\foo\bar\Project       -> ~\Project
+    """
+    if path is None:
+        return "(not set)"
+
+    parts = path.parts
+
+    # Keep the last `max_parts` path components.
+    tail = parts[-max_parts:] if len(parts) >= max_parts else parts
+
+    return "~\\" + "\\".join(tail)
+
 class SelectableStatic(Static):
     """`Static`, but explicit about wanting Textual's built-in
     click-drag text selection turned on. `RichLog` (the old scrollback
@@ -167,12 +186,23 @@ class TesseractApp(App):
     Screen { layout: vertical; }
     #scrollback { height: 1fr; width: 1fr; padding: 0 1; }
     #status-line { height: 1; width: 1fr; padding: 0 1; color: $text-muted; }
-    #mode-line { height: 1; width: 1fr; padding: 0 1; color: #7c8bff; }
-    #input-area { height: auto; width: 1fr; padding: 0 1 1 1; }
+    /* Item 8: the input is now one bordered container (like Claude
+       Code's prompt box) instead of a borderless line with a separate
+       mode-line strip floating above it. `height: auto` lets it grow
+       with #main-input (still 1-8 lines, see on_text_area_changed)
+       without a fixed cell size fighting the content. */
+    #input-area {
+        height: auto; width: 1fr; margin: 0 1 1 1; padding: 0 1;
+        border: round #3b3f51;
+    }
     #prompt-row { height: auto; width: 1fr; }
     #prompt-glyph { width: auto; padding: 0 1 0 0; color: #4dd8ff; text-style: bold; }
     #main-input { width: 1fr; border: none; background: transparent; padding: 0; height: 1; }
     #main-input:focus { border: none; }
+    /* Status row now lives INSIDE the bordered box, under the prompt
+       row - see compose(). Still #mode-line so _refresh_mode_line
+       doesn't need to change which widget it targets. */
+    #mode-line { height: 1; width: 1fr; padding: 0; color: #7c8bff; }
     """
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
@@ -190,11 +220,11 @@ class TesseractApp(App):
     def compose(self) -> ComposeResult:
         yield VerticalScroll(id="scrollback")
         yield Static("", id="status-line")
-        yield Static("", id="mode-line")
         with Vertical(id="input-area"):
             with Horizontal(id="prompt-row"):
                 yield Static("›", id="prompt-glyph")
                 yield ChatTextArea(id="main-input", placeholder="")
+            yield Static("", id="mode-line")
 
     # ------------------------------------------------------------------
     # stage property
@@ -346,16 +376,23 @@ class TesseractApp(App):
         self.query_one("#status-line", Static).update(text)
 
     def _refresh_mode_line(self) -> None:
-        """Always-visible workspace/pack/stage strip, distinct in color
-        (#7c8bff, the purple end of the logo gradient) from both the
-        cyan input prompt and the plain scrollback text - a persistent
-        status bar so this context isn't only visible on the 'home'/
-        'settings' screens."""
-        workspace = str(self.workspace_root) if self.workspace_root else "(not set)"
+        """Always-visible workspace/pack/stage row, now inside the
+        bordered input box itself (item 8) rather than a separate
+        strip above it. Distinct in color (#7c8bff, the purple end of
+        the logo gradient) from both the cyan input prompt and the
+        grey nav-divider lines (item 7, see `_write_nav_divider`) so
+        the two don't get visually confused even though both mark
+        "where you are" - the workspace path is truncated for display
+        only (`_truncate_path_display`); `self.workspace_root` itself
+        is never touched."""
+        ws_display = _truncate_path_display(self.workspace_root)
         pack = self.selected_pack or "(not set)"
         self.query_one("#mode-line", Static).update(
-            f"[dim]{workspace}[/dim]  •  pack: [bold]{pack}[/bold]  •  {self.stage}"
+            f"[dim]ws:[/dim] {ws_display} -  [dim][bold]{pack}[/bold][/dim]  -  [dim] {self.stage}[/dim]"
         )
+
+    def _write_nav_divider(self, label: str) -> None:
+        self.write_log(f"\n[#6c7086]──────────────────── {label} ────────────────────[/#6c7086]\n")
 
     def _print_banner(self) -> None:
         self.write_log(build_banner_panel(self.size.width))
@@ -380,17 +417,30 @@ class TesseractApp(App):
             self._report_error("Internal error", exc)
 
     def _report_error(self, title: str, exc: Exception, *, user_text: str | None = None) -> None:
-        import traceback
-
-        tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         prefix = f"[bold cyan]›[/bold cyan] {user_text}\n\n" if user_text is not None else ""
-        self.write_log(
-            render_box(
-                title,
-                f"{prefix}[red]{type(exc).__name__}: {exc}[/red]\n\n[dim]{tb.strip()}[/dim]",
-                style="red",
-            )
-        )
+        message = f"{prefix}[red]{type(exc).__name__}: {exc}[/red]"
+
+        # verbose.errors (item 10): off by default - a config error, a
+        # tool crash, etc. always shows type+message, but the full
+        # traceback (often huge) only prints if the user opted in via
+        # 'set verbose.errors true'. Reading through config_manager
+        # directly (not a cached bool) so flipping the setting takes
+        # effect on the very next error, no restart needed.
+        verbose_errors = False
+        try:
+            verbose_errors = bool(self.config_manager.config.verbose.errors)
+        except AttributeError:
+            pass  # config_manager not built yet (very early startup failure)
+
+        if verbose_errors:
+            import traceback
+
+            tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+            message += f"\n\n[dim]{tb.strip()}[/dim]"
+        else:
+            message += "\n\n[dim]set verbose.errors true to see the full traceback.[/dim]"
+
+        self.write_log(render_box(title, message, style="red"))
 
     def _remove_echo(self, echo_id: str) -> None:
         """Removes the lightweight, unboxed "you typed this" line
@@ -437,20 +487,51 @@ class TesseractApp(App):
 
             # Compound shorthand, usable from chat/home directly (settings
             # already gets `_translate_compound_shorthand` applied to its
-            # own grammar below) - "-cfg model <pack>" switches the active
-            # pack without leaving chat, and "-rm -p <name>"/"add -md ..."
-            # reach add/remove pack/model without opening `settings` first.
+            # own grammar below) - "-rm -p <name>"/"add -md ..." reach
+            # add/remove pack/model without opening `settings` first.
             if self.stage in {"chat", "home"}:
                 words = stripped.split()
                 first = words[0].lower()
-                if first in ("-cfg", "--config") and len(words) >= 2 and words[1].lower() == "model":
+
+                # Item 2: ANY settings-stage command now runs straight
+                # from chat/home via "-cfg <rest>" - not just "-cfg
+                # model [pack]" as before. `model`/`-ws`/`workspace`
+                # stay special-cased since they're app-level session
+                # state (selected_pack / workspace_root), not part of
+                # settings_commands' own grammar; everything else is
+                # forwarded to settings_commands.handle() verbatim,
+                # printed right where you are, with self.stage
+                # untouched throughout.
+                if first in ("-cfg", "--config") and len(words) >= 2:
                     self.write_log(f"[dim]›[/dim] {text}")
-                    self._handle_inline_model_switch(words[2:])
+                    rest = words[1:]
+                    head = rest[0].lower()
+                    if head == "model":
+                        self._handle_inline_model_switch(rest[1:])
+                        return
+                    if head in ("-ws", "--workspace", "workspace"):
+                        self._handle_inline_workspace_switch(rest[1:])
+                        return
+                    translated = _translate_compound_shorthand(rest)
+                    if translated is not None:
+                        self.write_log(settings_commands.handle(self.config_manager, translated))
+                        self._after_settings_command(translated)
+                        return
+                    resolved_head = settings_commands.ALIASES.get(head, head)
+                    if resolved_head == "suggest" and len(rest) == 1:
+                        self._pack_return_stage = self.stage
+                        self.start_suggest_wizard()
+                        return
+                    resolved_text = " ".join([resolved_head, *rest[1:]])
+                    self.write_log(settings_commands.handle(self.config_manager, resolved_text))
+                    self._after_settings_command(resolved_text)
                     return
+
                 translated = _translate_compound_shorthand(words)
                 if translated is not None:
                     self.write_log(f"[dim]›[/dim] {text}")
                     self.write_log(settings_commands.handle(self.config_manager, translated))
+                    self._after_settings_command(translated)
                     return
 
         if self.stage == "workspace":
@@ -489,6 +570,7 @@ class TesseractApp(App):
             translated = _translate_compound_shorthand(words)
             if translated is not None:
                 self.write_log(settings_commands.handle(self.config_manager, translated))
+                self._after_settings_command(translated)
                 return
             first_word = words[0].lower()
             resolved_cmd = settings_commands.ALIASES.get(first_word, first_word)
@@ -503,6 +585,7 @@ class TesseractApp(App):
             # the resolved first word so aliases actually take effect.
             resolved_text = " ".join([resolved_cmd, *words[1:]])
             self.write_log(settings_commands.handle(self.config_manager, resolved_text))
+            self._after_settings_command(resolved_text)
             return
 
         if self.stage == "home":
@@ -519,14 +602,14 @@ class TesseractApp(App):
     def _navigate(self, command: str) -> None:
         if command == "chat":
             self.stage = "chat"
-            self.write_log("[dim]— back to chat —[/dim]")
+            self._write_nav_divider("chat")
         elif command == "settings":
             self.stage = "settings"
-            self.write_log("")
+            self._write_nav_divider("settings")
             self.write_log(render_settings(self))
         elif command == "home":
             self.stage = "home"
-            self.write_log("")
+            self._write_nav_divider("home")
             self.write_log(render_home(self))
         elif command == "model":
             self._pack_return_stage = self.stage
@@ -534,7 +617,7 @@ class TesseractApp(App):
         elif command == "workspace":
             self._workspace_return_stage = self.stage
             self.stage = "workspace_edit"
-            self.write_log("")
+            self._write_nav_divider("workspace")
             self.write_log(f"[bold]Current workspace:[/bold] {self.workspace_root}")
             self.write_log("[bold]New workspace folder:[/bold] (type a path, or 'cancel')")
         elif command in ("exit", "quit"):
@@ -655,6 +738,85 @@ class TesseractApp(App):
             self._refresh_mode_line()
         else:
             self.write_log(f"[red]no such pack: '{name}'.[/red] Try [bold]-p[/bold] to list packs.")
+
+    def _handle_inline_workspace_switch(self, args: list[str]) -> None:
+        """Backs `-cfg -ws <path>`/`-cfg workspace <path>` typed straight
+        into chat/home (item 2). With a path it's a direct one-shot
+        switch - no 'type a path or cancel' interactive stage, no
+        leaving chat/home - same shape as `_handle_inline_model_switch`
+        just above. Without one, falls back to the normal interactive
+        `workspace_edit` stage, same as the bare `workspace`/`-ws`
+        command."""
+        if not args:
+            self._workspace_return_stage = self.stage
+            self.stage = "workspace_edit"
+            self._write_nav_divider("workspace")
+            self.write_log(f"[bold]Current workspace:[/bold] {self.workspace_root}")
+            self.write_log("[bold]New workspace folder:[/bold] (type a path, or 'cancel')")
+            self._refresh_mode_line()
+            return
+        path = Path(" ".join(args)).expanduser().resolve()
+        if not path.exists() or not path.is_dir():
+            self.write_log(f"[red]not a valid directory: {path}[/red]")
+            return
+        self.workspace_root = path
+        self.messages.bind_store(ConversationStore(path))
+        self.write_log(f"[green]✓[/green] workspace set: {path}")
+        self._refresh_mode_line()
+
+    def _after_settings_command(self, cmd_text: str) -> None:
+        """Runs after every `settings_commands.handle()` call (from
+        the settings stage itself, the compound-shorthand path, or the
+        generalized `-cfg` forwarding - item 2) to keep app-level
+        session state (`self.selected_pack`) in sync with pack-level
+        edits `handle()`/`PacksManager` just made to global_config.yaml,
+        since neither of those has any notion of "the pack this
+        session currently has active":
+
+        - (item 3) the active pack just got deleted -> clear it and
+          reopen the pack picker immediately, so the user always has
+          one selected rather than silently pointing at a pack that no
+          longer exists.
+        - (item 4) a brand new pack was just added -> make it active
+          right away, same as picking "+ Add new pack" from the
+          picker already does - anyone adding a pack is doing it to
+          use it.
+        - the active pack was just renamed -> follow the rename so
+          `self.selected_pack` still refers to something real.
+
+        `cmd_text` must be the already-alias-resolved/translated
+        string actually passed to `handle()` (e.g. "remove pack foo
+        confirm"), not the raw shorthand the user typed - the word
+        positions checked below assume the canonical grammar."""
+        words = cmd_text.strip().split()
+        if len(words) < 3 or words[1].lower() != "pack":
+            return
+        head = words[0].lower()
+        providers = self.config_manager.config.providers
+
+        if head == "add":
+            name = words[2]
+            if name in providers:
+                self.selected_pack = name
+                self.write_log(f"[green]✓[/green] active pack: {name}")
+                self._refresh_mode_line()
+            return
+
+        if head == "remove":
+            name = words[2]
+            if name not in providers and self.selected_pack == name:
+                self.selected_pack = None
+                self.write_log("[yellow]active pack was removed - pick a new one:[/yellow]")
+                self._pack_return_stage = self.stage
+                self.show_model_picker()
+            return
+
+        if head == "rename" and len(words) >= 4:
+            old_name, new_name = words[2], words[3]
+            if self.selected_pack == old_name and new_name in providers and old_name not in providers:
+                self.selected_pack = new_name
+                self._refresh_mode_line()
+            return
 
     def show_model_picker(self) -> None:
         """Mounts an inline, arrow-key navigable OptionList in place of
@@ -848,7 +1010,7 @@ class TesseractApp(App):
     @work(exclusive=True)
     async def run_agent_turn(self, user_text: str, echo_id: str) -> None:
         """Previously a raised exception here (provider error, hitting
-        INNER_LOOP_MAX_ITERATIONS, a rate-limit that survived the
+        agent.max_iterations, a rate-limit that survived the
         dispatcher's own fallback/retry, a tool crash) would propagate
         out of this `@work` coroutine as a failed Worker, which Textual
         surfaces as an unhandled app-level exception - i.e. the whole
@@ -899,7 +1061,7 @@ class TesseractApp(App):
         call = ToolCallInfo(tool_name=tool_name, args=args, workspace_root=workspace_root)
 
         self.write_log("")
-        self.write_log(render_approval_preview(call))
+        self.write_log(render_box("Tool approval", render_approval_preview(call), style="yellow"))
 
         previous_stage = self.stage
         self.stage = "awaiting_approval"

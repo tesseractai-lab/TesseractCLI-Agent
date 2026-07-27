@@ -48,17 +48,33 @@ _PROVIDER_KEY_FIELDS = [
 # header is the saturated version and body is the washed-out one, so
 # a section reads as one color family rather than two unrelated colors.
 _SECTION_COLORS: dict[str, tuple[str, str]] = {
-    "overview": ("#4dd8ff", "#a8e8ff"),  # cyan
-    "keys": ("#4ddb9e", "#a8f2d4"),      # green
-    "packs": ("#b98cff", "#d9c6ff"),     # purple
-    "help": ("#e8a33d", "#f5cf94"),      # amber
+    "overview": ("#89DCEB", "#CFEFF7"),  # Cyan
+    "keys":     ("#A6E3A1", "#D8F5D4"),  # Green
+    "packs":    ("#CBA6F7", "#E8D8FF"),  # Purple
+    "help":     ("#F9E2AF", "#FCECC8"),  # Amber
 }
 
+# Grey used for the divider dashes on either side of each section's
+# title (item 6) - deliberately not one of the per-section hues above,
+# so the divider itself reads as neutral scaffolding and the colored
+# title still stands out as the actual section identity.
+_DIVIDER_COLOR = "#6c7086"
+_BORDER_COLOR = "#7F849C"
 
 def _section(title: str, key: str, content: str) -> str:
     header_color, body_color = _SECTION_COLORS[key]
-    return f"[bold {header_color}]{title}[/bold {header_color}]\n[{body_color}]{content}[/{body_color}]"
 
+    width = 50
+    left = "────────"
+    right = "─" * max(0, width - len(title) - len(left) - 2)
+
+    heading = (
+        f"[{_BORDER_COLOR}]╭{left}[/]"
+        f"[bold {header_color}] {title} [/bold {header_color}]"
+        f"[{_BORDER_COLOR}]{right}[/]"
+    )
+
+    return f"{heading}\n[{body_color}]{content}[/{body_color}]"
 
 def render_settings(app: "TesseractApp") -> Any:
     settings = get_settings()
@@ -74,17 +90,18 @@ def render_settings(app: "TesseractApp") -> Any:
     workspace = app.workspace_root or "(not set)"
     pack = app.selected_pack or "(not set)"
 
-    pack_summaries = "\n".join(
-        f"  [{pack_color(i)}]{name}[/{pack_color(i)}]: {len(p.pool)} pool / {len(p.fallback)} fallback"
+    pack_summaries = "\n\n".join(
+        f" [bold] [{pack_color(i)}]{name}[/{pack_color(i)}][bold]:\
+            \n    |- {len(p.pool)} pool \
+            \n    |- {len(p.fallback)} fallback "
         for i, (name, p) in enumerate(cfg.providers.items())
     ) or "  (no packs configured)"
 
     overview = (
         f"App              {settings.APP_NAME} v{settings.APP_VERSION} ({settings.ENV_MODE.value})\n"
+        f"Config file      {manager.config_path}\n"
         f"Workspace        {workspace}\n"
         f"Active pack      {pack}\n"
-        f"Config file      {manager.config_path}\n"
-        f"Schema version   {cfg.schema_version}"
     )
 
     body = "\n\n".join(

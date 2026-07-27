@@ -47,7 +47,7 @@ in whichever of `model_meta`/`tools` matches its role):
                  out of the content string later).
 
 Known gap: if the inner loop stops before a requested tool call ever
-gets dispatched (e.g. INNER_LOOP_MAX_ITERATIONS hit mid-call), that
+gets dispatched (e.g. agent.max_iterations hit mid-call), that
 one request's args are never persisted - there's no ToolMessage row
 for it to hang off of. Accepted for now given how rare/edge-case it is.
 """
