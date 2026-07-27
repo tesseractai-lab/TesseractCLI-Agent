@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from rich.panel import Panel
+from rich.text import Text
 
 
 def render_box(title: str, body: Any, *, style: str = "#4dd8ff") -> Panel:
@@ -28,6 +29,16 @@ def render_box(title: str, body: Any, *, style: str = "#4dd8ff") -> Panel:
     Returns:
         A `rich.panel.Panel` ready to hand to `RichLog.write()`.
     """
+    # A plain markup string is turned into a `Text` with
+    # `overflow="fold"` explicitly, rather than left to Rich's default
+    # (which only breaks on whitespace). Without this, a single long
+    # unbroken token - a URL, a hash, a line of code with no spaces -
+    # can render wider than the panel's content area and spill out past
+    # the border instead of wrapping. Any renderable that isn't a plain
+    # string (already-built Rich objects, e.g. the banner) is passed
+    # through untouched.
+    if isinstance(body, str):
+        body = Text.from_markup(body, overflow="fold")
     return Panel(
         body,
         title=f"[bold]{title}[/bold]",

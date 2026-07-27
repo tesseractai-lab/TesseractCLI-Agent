@@ -35,7 +35,13 @@ def render_approval_preview(call: ToolCallInfo) -> str:
     """Builds a short Rich-markup preview per known tool name, falling
     back to a raw name+args dump for anything without a dedicated
     branch yet (mirrors the branching that used to live in
-    `ApprovalModal._preview_markup` / `tools/approval.py`)."""
+    `ApprovalModal._preview_markup` / `tools/approval.py`).
+
+    Returns just the preview body + y/n prompt - no title line of its
+    own. `TesseractApp.approve_via_ui` (ui/app.py) wraps the returned
+    string in `render_box("Tool approval", ..., style="yellow")`, so
+    the panel's own title takes over what used to be a plain
+    "Tool requesting approval" bold text line here."""
     name = call.tool_name
     args = call.args
 
@@ -62,8 +68,4 @@ def render_approval_preview(call: ToolCallInfo) -> str:
     else:
         body = f"[bold]{name}[/bold]\n{args}"
 
-    return (
-        "[bold]Tool requesting approval[/bold]\n"
-        f"{body}\n"
-        "[dim]approve this? (y/n)[/dim]"
-    )
+    return f"{body}\n\n[dim]approve this? (y/n)[/dim]"
