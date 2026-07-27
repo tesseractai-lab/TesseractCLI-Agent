@@ -6,6 +6,8 @@ the model on every loop iteration" problem via its internal cache).
 """
 from __future__ import annotations
 
+import random
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, ToolMessage
 
@@ -70,6 +72,17 @@ class LLMDispatcher:
             return self._max_context_messages_override
         return self.resolver.manager.config.agent.max_context_messages
 
+    @property
+    def max_iterations(self) -> int:
+        """Live off the same shared ConfigManager as max_context_messages -
+        `agent.max_iterations` (default 10, see config_models/agent_models.py).
+        Reading it here (rather than agent/loop.py constructing its own
+        ConfigManager) is what makes `settings --set agent.max_iterations n`
+        (or the TUI settings screen) take effect on the very next turn,
+        with no restart - the same "never cache it separately" principle
+        already applied to max_context_messages above."""
+        return self.resolver.manager.get("agent.max_iterations", default=10)
+
     def _get_provider(self, name: str) -> BaseLLMProvider:
         if name not in self._PROVIDER_REGISTRY:
             raise ValueError(
@@ -83,12 +96,22 @@ class LLMDispatcher:
     def _pack_for(self, pack_name: str | None) -> ModelPack:
         return self.resolver.resolve(pack_name)
 
-    def get_llm(self, pack_name: str | None = None) -> BaseChatModel:
+    def get_llm(
+        self, pack_name: str | None = None, pinned: tuple[str, str] | None = None
+    ) -> BaseChatModel:
         """Primary-only getter, no fallback walk - for callers that want
         a plain model handle (e.g. for `.bind_tools()`) rather than the
-        retry/fallback-aware `ainvoke_with_fallback`."""
+        retry/fallback-aware `ainvoke_with_fallback`.
+
+        `pinned`, if given, is a (provider, model) pair that must already
+        exist somewhere in the pack's pool/fallback - use that exact
+        entry instead of the pack's first pool entry."""
         pack = self._pack_for(pack_name)
-        primary = self._primary_of(pack, pack_name)
+        primary = (
+            self.resolver.resolve_step(pack_name, *pinned)
+            if pinned is not None
+            else self._primary_of(pack, pack_name)
+        )
         provider = self._get_provider(primary.provider)
         logger.debug(
             "get_llm → pack={} provider={} model={}",
@@ -100,16 +123,29 @@ class LLMDispatcher:
             max_tokens=pack.max_tokens,
         )
 
-    def get_llm_with_tools(self, tools: list[dict], pack_name: str | None = None) -> BaseChatModel:
+    def get_llm_with_tools(
+        self,
+        tools: list[dict],
+        pack_name: str | None = None,
+        pinned: tuple[str, str] | None = None,
+    ) -> BaseChatModel:
         """Like get_llm(), but returns a tool-bound model - bind_tools()
         happens before with_retry() inside the provider, since RunnableRetry
         doesn't forward bind_tools(). NOTE: this has no fallback/rate-limit
         handling of its own - use ainvoke_with_fallback(..., tools=...) for
         the full resilience path. This stays around for callers that only
         need a raw bound model handle (e.g. streaming) without invoking it
-        through the dispatcher."""
+        through the dispatcher.
+
+        `pinned`, if given, is a (provider, model) pair that must already
+        exist somewhere in the pack's pool/fallback - use that exact
+        entry instead of the pack's first pool entry."""
         pack = self._pack_for(pack_name)
-        primary = self._primary_of(pack, pack_name)
+        primary = (
+            self.resolver.resolve_step(pack_name, *pinned)
+            if pinned is not None
+            else self._primary_of(pack, pack_name)
+        )
         provider = self._get_provider(primary.provider)
 
         logger.debug(
@@ -133,79 +169,113 @@ class LLMDispatcher:
         messages: list[BaseMessage],
         tools: list[dict] | None = None,
         pack_name: str | None = None,
+        pinned: tuple[str, str] | None = None,
     ) -> BaseMessage:
-        """Try every model in the pack's pool, then every model in its
-        fallback list, in order. Within a single step: `.with_retry()`
-        (already baked into every provider's get_model/get_model_with_tools)
-        absorbs transient failures. If the step still fails and it looks
-        rate-limit/size-shaped, truncate the last message and retry that
-        SAME step once before moving to the next one. Raises RuntimeError
-        only if every step is exhausted.
+        """Try the pack's pool in a random order every call - NOT always
+        starting from pool[0] - so repeated calls spread load/usage
+        across every configured model rather than hammering one entry
+        and only ever reaching the others when it happens to fail.
+        Fallback is a second group, touched ONLY once every single pool
+        entry has been tried and failed this call - at that point it's
+        treated exactly like its own pool (same random order), not as a
+        fixed last-resort sequence.
+
+        Within a single step: `.with_retry()` (already baked into every
+        provider's get_model/get_model_with_tools) absorbs transient
+        failures. If the step still fails and it looks rate-limit/size-
+        shaped, truncate the last message and retry that SAME step once
+        before moving to a different step in the same group. Raises
+        RuntimeError only if pool and fallback are both fully exhausted.
 
         Pass `tools` to get a tool-bound model at every step (pool AND
         fallback) - this is the single entry point for tool-calling +
         fallback + rate-limit resilience combined. Returns the full
         BaseMessage (not just .content), since tool calls live on
         `.tool_calls`, not in `.content`.
+
+        `pinned`, if given, is a (provider, model) pair the caller
+        explicitly wants used for this call, bypassing pool/fallback
+        selection entirely - resolved via
+        `RoutingResolver.resolve_step`. It still gets the same rate-
+        limit-triggered truncate-and-retry-once treatment as any other
+        step, it just never moves on to a different model if that retry
+        also fails. Raises ConfigModelError up front if `pinned` doesn't
+        match any pool/fallback entry in the resolved pack.
         """
         pack = self._pack_for(pack_name)
-        steps = [*pack.pool, *pack.fallback]
+        if pinned is not None:
+            groups = [[self.resolver.resolve_step(pack_name, *pinned)]]
+        else:
+            # Two groups, each shuffled independently every call - this is
+            # what makes model selection an actual round-robin/random pick
+            # across the pool (not always starting from pool[0] in fixed
+            # order): fallback is only ever touched once every single
+            # pool entry has been tried and failed this call, at which
+            # point it's treated exactly like its own pool (same random
+            # approach), not as a fixed-order last resort.
+            groups = [list(pack.pool), list(pack.fallback)]
         last_error: Exception | None = None
         messages = self._window_messages(messages, self.max_context_messages)
 
-        for step in steps:
-            provider = self._get_provider(step.provider)
-
-            if tools:
-                model = provider.get_model_with_tools_safe(
-                    step.model,
-                    tools,
-                    temperature=pack.temperature,
-                    max_tokens=pack.max_tokens,
-                )
-            else:
-                model = provider.get_model_safe(
-                    step.model,
-                    temperature=pack.temperature,
-                    max_tokens=pack.max_tokens,
-                )
-
-            if model is None:
-                logger.warning(
-                    "skipping {}/{} - provider unavailable (missing key/config)",
-                    step.provider,
-                    step.model,
-                )
+        for group in groups:
+            if not group:
                 continue
+            order = list(group)
+            random.shuffle(order)
 
-            try:
-                result = await model.ainvoke(messages)
-                return self._stamp_attribution(result, step, pack_name, pack)
-            except Exception as e:  # noqa: BLE001 - intentional: any failure -> try next
-                if not self._looks_like_rate_limit_error(e):
-                    last_error = e
-                    logger.error("{}/{} failed: {}", step.provider, step.model, e)
-                    continue
+            for step in order:
+                provider = self._get_provider(step.provider)
 
-                logger.warning(
-                    "{}/{} hit a rate-limit/size-shaped error, truncating "
-                    "and retrying this step once",
-                    step.provider,
-                    step.model,
-                )
-                truncated = self._truncate_messages(messages)
-                try:
-                    result = await model.ainvoke(truncated)
-                    return self._stamp_attribution(result, step, pack_name, pack)
-                except Exception as e2:  # noqa: BLE001
-                    last_error = e2
-                    logger.error(
-                        "{}/{} failed again after truncation: {}",
+                if tools:
+                    model = provider.get_model_with_tools_safe(
+                        step.model,
+                        tools,
+                        temperature=pack.temperature,
+                        max_tokens=pack.max_tokens,
+                    )
+                else:
+                    model = provider.get_model_safe(
+                        step.model,
+                        temperature=pack.temperature,
+                        max_tokens=pack.max_tokens,
+                    )
+
+                if model is None:
+                    logger.warning(
+                        "skipping {}/{} - provider unavailable (missing key/config)",
                         step.provider,
                         step.model,
-                        e2,
                     )
                     continue
+
+                try:
+                    result = await model.ainvoke(messages)
+                    return self._stamp_attribution(result, step, pack_name, pack)
+                except Exception as e:  # noqa: BLE001 - intentional: any failure -> try next
+                    if not self._looks_like_rate_limit_error(e):
+                        last_error = e
+                        logger.error("{}/{} failed: {}", step.provider, step.model, e)
+                        continue
+
+                    logger.warning(
+                        "{}/{} hit a rate-limit/size-shaped error, truncating "
+                        "and retrying this step once",
+                        step.provider,
+                        step.model,
+                    )
+                    truncated = self._truncate_messages(messages)
+                    try:
+                        result = await model.ainvoke(truncated)
+                        return self._stamp_attribution(result, step, pack_name, pack)
+                    except Exception as e2:  # noqa: BLE001
+                        last_error = e2
+                        logger.error(
+                            "{}/{} failed again after truncation: {}",
+                            step.provider,
+                            step.model,
+                            e2,
+                        )
+                        continue
 
         raise RuntimeError(
             f"All routing steps exhausted for pack '{pack_name}'"

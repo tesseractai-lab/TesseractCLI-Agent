@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from tesseractcli.models.tool_models import ToolResult, ReadFileMetadata, ReadFileArgs
-from tesseractcli.models.exceptions import FileNotFoundInWorkspace, PathEscapesWorkspaceError
+from tesseractcli.models.exceptions import FileNotFoundInWorkspace, PathEscapesWorkspaceError, SensitiveFileBlocked
 from tesseractcli.tools.sandbox import safe_open
 from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.config.settings import get_settings as config
@@ -55,6 +55,8 @@ def read_file(
     except PathEscapesWorkspaceError as e:
         return ToolResult(tool_name="read_file", success=False, output="", error=str(e))
     except FileNotFoundInWorkspace as e:
+        return ToolResult(tool_name="read_file", success=False, output="", error=str(e))
+    except SensitiveFileBlocked as e:
         return ToolResult(tool_name="read_file", success=False, output="", error=str(e))
     except PermissionError:
         return ToolResult(tool_name="read_file", success=False, output="",

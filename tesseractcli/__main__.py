@@ -40,6 +40,7 @@ import argparse
 import sys
 
 from tesseractcli.config.global_config.manager import ConfigManager
+from tesseractcli.models.exceptions import ConfigError
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -92,33 +93,36 @@ def _run_settings(args: argparse.Namespace) -> None:
         console.print(render_packs_overview(manager))
         return
 
-    if args.add == "pool":
-        _require(args, "pack")
-        manager.packs.add_pack(args.pack)
-        manager.save()
-        console.print(f"[green]created pack '{args.pack}'[/green]")
-    elif args.add == "model":
-        _require(args, "pack", "provider", "model")
-        manager.packs.add_model(args.pack, args.provider, args.model, target="fallback" if args.fallback else "pool")
-        manager.save()
-        console.print(f"[green]added {args.provider}/{args.model} to '{args.pack}'[/green]")
-    elif args.remove == "pool":
-        _require(args, "pack")
-        manager.packs.remove_pack(args.pack)
-        manager.save()
-        console.print(f"[green]removed pack '{args.pack}'[/green]")
-    elif args.remove == "model":
-        _require(args, "pack", "provider", "model")
-        manager.packs.remove_model(args.pack, args.provider, args.model, target="fallback" if args.fallback else "pool")
-        manager.save()
-        console.print(f"[green]removed {args.provider}/{args.model} from '{args.pack}'[/green]")
-    elif args.set:
-        path, value = args.set
-        manager.set(path, value)
-        manager.save()
-        console.print(f"[green]{path} = {value}[/green]")
-    elif args.get:
-        console.print(f"{args.get} = {manager.get(args.get)}")
+    try:
+        if args.add == "pool":
+            _require(args, "pack")
+            manager.packs.add_pack(args.pack)
+            manager.save()
+            console.print(f"[green]created pack '{args.pack}'[/green]")
+        elif args.add == "model":
+            _require(args, "pack", "provider", "model")
+            manager.packs.add_model(args.pack, args.provider, args.model, target="fallback" if args.fallback else "pool")
+            manager.save()
+            console.print(f"[green]added {args.provider}/{args.model} to '{args.pack}'[/green]")
+        elif args.remove == "pool":
+            _require(args, "pack")
+            manager.packs.remove_pack(args.pack)
+            manager.save()
+            console.print(f"[green]removed pack '{args.pack}'[/green]")
+        elif args.remove == "model":
+            _require(args, "pack", "provider", "model")
+            manager.packs.remove_model(args.pack, args.provider, args.model, target="fallback" if args.fallback else "pool")
+            manager.save()
+            console.print(f"[green]removed {args.provider}/{args.model} from '{args.pack}'[/green]")
+        elif args.set:
+            path, value = args.set
+            manager.set(path, value)
+            manager.save()
+            console.print(f"[green]{path} = {value}[/green]")
+        elif args.get:
+            console.print(f"{args.get} = {manager.get(args.get)}")
+    except ConfigError as exc:
+        sys.exit(f"error: {exc}")
 
 
 def main() -> None:

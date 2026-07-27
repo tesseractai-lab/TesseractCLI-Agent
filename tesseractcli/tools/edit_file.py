@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 from tesseractcli.models.tool_models import ToolResult, EditFileMetadata, EditFileArgs
-from tesseractcli.models.exceptions import PathEscapesWorkspaceError, FileNotFoundInWorkspace
+from tesseractcli.models.exceptions import PathEscapesWorkspaceError, FileNotFoundInWorkspace, SensitiveFileBlocked
 from tesseractcli.tools.sandbox import safe_open, resolve_in_workspace, atomic_write
 from tesseractcli.tools.registry import ToolRegistry
 
@@ -56,6 +56,8 @@ def edit_file(
     except PathEscapesWorkspaceError as e:
         return ToolResult(tool_name="edit_file", success=False, output="", error=str(e))
     except FileNotFoundInWorkspace as e:
+        return ToolResult(tool_name="edit_file", success=False, output="", error=str(e))
+    except SensitiveFileBlocked as e:
         return ToolResult(tool_name="edit_file", success=False, output="", error=str(e))
     except PermissionError:
         return ToolResult(tool_name="edit_file", success=False, output="",

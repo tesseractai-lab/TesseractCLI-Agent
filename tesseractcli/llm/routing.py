@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from tesseractcli.models.exceptions import ConfigPackError
+from tesseractcli.models.exceptions import ConfigPackError, ConfigModelError
 from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.global_config.manager import ConfigManager
 
@@ -78,6 +78,28 @@ class RoutingResolver:
                 f"Pack '{pack_name or self._default_pack}' has an empty pool."
             )
         return pack.pool[0]
+
+    def resolve_step(self, pack_name: str | None, provider: str, model: str) -> ModelConfig:
+        """Return the exact ModelConfig for `provider`/`model` inside the
+        resolved pack's pool+fallback (searched in that order).
+
+        This is what lets a caller "pin" to one specific entry instead of
+        always getting the whole pool-then-fallback list - the model must
+        already exist somewhere in the pack (pool or fallback); this does
+        not construct an ad-hoc ModelConfig from arbitrary input.
+
+        Raises:
+            ConfigModelError: if no entry in the pack's pool or fallback
+                matches (provider, model) exactly.
+        """
+        pack = self.resolve(pack_name)
+        for entry in (*pack.pool, *pack.fallback):
+            if entry.matches(provider, model):
+                return entry
+        raise ConfigModelError(
+            f"'{provider}/{model}' is not in pack '{pack_name or self._default_pack}' "
+            f"(pool or fallback)."
+        )
 
 
 @lru_cache(maxsize=1)
