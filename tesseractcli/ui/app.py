@@ -149,6 +149,7 @@ def _translate_compound_shorthand(words: list[str]) -> str | None:
 # id. Same tradeoff already documented above for NAV_COMMANDS.
 _FREE_TEXT_STAGES = {
     "awaiting_approval", "wiz_model_custom", "wiz_pack_new", "awaiting_reset_confirm",
+    "awaiting_remove_pack_confirm", "awaiting_activate_confirm",
 }
 
 
@@ -408,7 +409,7 @@ class TesseractApp(App):
         ws_display = _truncate_path_display(self.workspace_root)
         pack = self.selected_pack or "(not set)"
         self.query_one("#mode-line", Static).update(
-            f"[dim]ws:[/dim] {ws_display} -  [dim][bold]{pack}[/bold][/dim]  -  [dim] {self.stage}[/dim]"
+            f"[dim]ws:[/dim] {ws_display} •  [dim][bold]{pack}[/bold][/dim]  •  [dim] {self.stage}[/dim]"
         )
 
     def _write_nav_divider(self, label: str) -> None:
@@ -554,8 +555,7 @@ class TesseractApp(App):
                         return
                     translated = _translate_compound_shorthand(rest)
                     if translated is not None:
-                        self.write_log(settings_commands.handle(self.config_manager, translated))
-                        self._after_settings_command(translated)
+                        self._dispatch_settings_cmd(translated)
                         return
                     resolved_head = settings_commands.ALIASES.get(head, head)
                     if resolved_head == "suggest" and len(rest) == 1:
@@ -563,15 +563,13 @@ class TesseractApp(App):
                         self.start_suggest_wizard()
                         return
                     resolved_text = " ".join([resolved_head, *rest[1:]])
-                    self.write_log(settings_commands.handle(self.config_manager, resolved_text))
-                    self._after_settings_command(resolved_text)
+                    self._dispatch_settings_cmd(resolved_text)
                     return
 
                 translated = _translate_compound_shorthand(words)
                 if translated is not None:
                     self.write_log(f"[dim]›[/dim] {text}")
-                    self.write_log(settings_commands.handle(self.config_manager, translated))
-                    self._after_settings_command(translated)
+                    self._dispatch_settings_cmd(translated)
                     return
 
         if self.stage == "workspace":
@@ -588,6 +586,14 @@ class TesseractApp(App):
 
         if self.stage == "awaiting_reset_confirm":
             self._handle_reset_confirm_input(stripped)
+            return
+
+        if self.stage == "awaiting_remove_pack_confirm":
+            self._handle_remove_pack_confirm_input(stripped)
+            return
+
+        if self.stage == "awaiting_activate_confirm":
+            self._handle_activate_confirm_input(stripped)
             return
 
         if self.stage == "wiz_model_custom":
@@ -613,8 +619,7 @@ class TesseractApp(App):
             words = stripped.split()
             translated = _translate_compound_shorthand(words)
             if translated is not None:
-                self.write_log(settings_commands.handle(self.config_manager, translated))
-                self._after_settings_command(translated)
+                self._dispatch_settings_cmd(translated)
                 return
             first_word = words[0].lower()
             resolved_cmd = settings_commands.ALIASES.get(first_word, first_word)
@@ -628,8 +633,7 @@ class TesseractApp(App):
             # and never consulted ALIASES. Rebuild the command line with
             # the resolved first word so aliases actually take effect.
             resolved_text = " ".join([resolved_cmd, *words[1:]])
-            self.write_log(settings_commands.handle(self.config_manager, resolved_text))
-            self._after_settings_command(resolved_text)
+            self._dispatch_settings_cmd(resolved_text)
             return
 
         if self.stage == "home":
@@ -744,6 +748,73 @@ class TesseractApp(App):
         with no sense of where you are."""
         self.query_one("#scrollback", VerticalScroll).remove_children()
         self._print_banner()
+        self._refresh_mode_line()
+
+    def _dispatch_settings_cmd(self, cmd_text: str) -> None:
+        """Single funnel for every settings-grammar command, regardless
+        of which of the several call sites reached it (settings stage,
+        '-cfg <rest>' inline from chat/home, compound shorthand). Lets
+        specific commands be intercepted for an app-level y/n confirm
+        stage before ever reaching `settings_commands.handle()` - today
+        that's just 'remove pack <name>' (see `_start_remove_pack_confirm`,
+        same pattern as `_start_reset_confirm`); the old '... confirm'
+        retyped-command flow inside `handle()` itself still works too,
+        for anyone scripting commands directly."""
+        parts = cmd_text.strip().split()
+        if len(parts) == 3 and parts[0].lower() == "remove" and parts[1].lower() == "pack":
+            self._start_remove_pack_confirm(parts[2])
+            return
+        self.write_log(settings_commands.handle(self.config_manager, cmd_text))
+        self._after_settings_command(cmd_text)
+
+    def _start_remove_pack_confirm(self, name: str) -> None:
+        """Backs 'remove pack <name>' - same y/n confirm pattern as
+        `_start_reset_confirm` (same box style, same 'y'/anything-else
+        semantics), replacing the old flow that required retyping the
+        whole command with 'confirm' appended. Permanently deletes the
+        pack (and every model inside it) once confirmed; a backup is
+        always taken first."""
+        if name not in self.config_manager.packs.list_packs():
+            self.write_log(
+                render_box(
+                    "Unknown pack",
+                    f"'{name}' isn't a known pack.",
+                    style="#C4374F",
+                )
+            )
+            return
+        self.write_log(
+            render_box(
+                "Confirm delete",
+                f"This permanently deletes pack '[bold]{name}[/bold]' and every "
+                "model inside it. A backup is taken automatically before the "
+                "delete.\n\n"
+                "Type [bold]y[/bold] to confirm, anything else to cancel.",
+                style="#C4374F",
+            )
+        )
+        self._remove_pack_return_stage = self.stage
+        self._pending_remove_pack = name
+        self.stage = "awaiting_remove_pack_confirm"
+
+    def _handle_remove_pack_confirm_input(self, text: str) -> None:
+        self.write_log(f"[dim]›[/dim] {text}")
+        name = self._pending_remove_pack
+        if text.strip().lower() in ("y", "yes"):
+            try:
+                self.config_manager.backup()
+                self.config_manager.packs.remove_pack(name)
+                self.config_manager.save()
+                self._pack_choices = load_pack_choices(self.config_manager)
+                self.write_log(
+                    f"[green]✓[/green] removed pack '{name}'.\n"
+                    "[dim]A backup was taken first - run 'restore' if this was a mistake.[/dim]"
+                )
+            except ConfigError as exc:
+                self.write_log(f"[red]{exc}[/red]")
+        else:
+            self.write_log("[dim]Delete cancelled.[/dim]")
+        self.stage = self._remove_pack_return_stage
         self._refresh_mode_line()
 
     def _start_reset_confirm(self, scope: str | None) -> None:
@@ -1116,23 +1187,58 @@ class TesseractApp(App):
         model = self._wiz["model"]
         pack = self._wiz["pack"]
         target = self._wiz["target"]
+        pack_is_new = self._wiz.get("pack_is_new", False)
         activate = self._wiz.get("activate", False)
         return_stage = self._wiz.get("return_stage", "settings")
 
         try:
-            if self._wiz.get("pack_is_new"):
+            if pack_is_new:
                 self.config_manager.packs.add_pack(pack)
             self.config_manager.packs.add_model(pack, provider, model, target=target)
             self.config_manager.save()
             self.write_log(f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target}).")
-            if activate:
-                self.selected_pack = pack
-                self.write_log(f"[green]✓[/green] active pack: {pack}")
         except ConfigError as exc:
             self.write_log(f"[red]{exc}[/red]")
+            self._wiz = {}
+            self.stage = return_stage
+            self._restore_input()
+            self._refresh_mode_line()
+            return
 
         self._wiz = {}
+
+        if activate:
+            # Used to activate `pack` immediately here. Now asks first -
+            # same y/n confirm pattern as `_start_reset_confirm` /
+            # `_start_remove_pack_confirm`, green instead of red since
+            # this is an additive/reversible action, not a delete.
+            self.write_log(
+                render_box(
+                    "Activate this pack?",
+                    f"Set '[bold]{pack}[/bold]' as the active pack now?\n\n"
+                    "Type [bold]y[/bold] to confirm, anything else to keep "
+                    "the current active pack.",
+                    style="#A6E3A1",
+                )
+            )
+            self._pending_activate_pack = pack
+            self._activate_return_stage = return_stage
+            self.stage = "awaiting_activate_confirm"
+            return
+
         self.stage = return_stage
+        self._restore_input()
+        self._refresh_mode_line()
+
+    def _handle_activate_confirm_input(self, text: str) -> None:
+        self.write_log(f"[dim]›[/dim] {text}")
+        pack = self._pending_activate_pack
+        if text.strip().lower() in ("y", "yes"):
+            self.selected_pack = pack
+            self.write_log(f"[green]✓[/green] active pack: {pack}")
+        else:
+            self.write_log("[dim]Kept the current active pack.[/dim]")
+        self.stage = self._activate_return_stage
         self._restore_input()
         self._refresh_mode_line()
 

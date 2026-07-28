@@ -106,7 +106,7 @@ HELP_TEXT = (
     "  pack <name>                          Show pack details              -\n"
     "  suggest                              Browse model suggestions       -s\n"
     "  add pack <name>                      Create a new pack              -a -p <name>\n"
-    "  remove pack <name>                   Delete a pack                  -rm -p <name>\n"
+    "  remove pack <name>                   Delete a pack (asks y/n)       -rm -p <name>\n"
     "  rename pack <old> <new>              Rename a pack                  -rn\n"
     "  add model <pack> <provider> <model> [fallback]\n"
     "                                       Add a model to a pack\n"
@@ -142,7 +142,7 @@ HELP_TEXT = (
     "[dim]"
     "Notes\n"
     "─────\n"
-    "• Deleting a pack or model always asks for confirmation.\n"
+
     "• A backup is automatically created before any delete operation.\n"
     "• Restore any previous configuration from the Backups section."
     "[/dim]"
