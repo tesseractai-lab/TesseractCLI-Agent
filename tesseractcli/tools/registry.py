@@ -9,6 +9,7 @@ from typing import Callable
 from pydantic import BaseModel, ValidationError
 
 from tesseractcli.models import ToolResult
+from tesseractcli.observability import traced_tool_call
 
 @dataclass
 class ToolRegistry:
@@ -50,4 +51,9 @@ class ToolRegistry:
             return ToolResult(tool_name=name, success=False, output="",
                                 error=f"Invalid arguments for '{name}': {e}")
 
-        return fn(workspace_root=workspace_root, **validated.model_dump())
+        # Plain Python call, not a LangChain Runnable, so it is NOT
+        # auto-traced the way model.ainvoke() calls are - traced_tool_call
+        # wraps it in a LangSmith run named after the real tool (e.g.
+        # "edit_file"), and is a no-op when tracing is off.
+        with traced_tool_call(name, raw_args):
+            return fn(workspace_root=workspace_root, **validated.model_dump())

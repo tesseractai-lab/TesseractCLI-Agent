@@ -1082,4 +1082,10 @@ class TesseractApp(App):
 
 
 def run() -> None:
+    # No-op unless LANGSMITH_TRACING=true in .env - see
+    # observability/tracing.py. Must happen before any dispatcher/model
+    # call, so every model call made during this session is traced.
+    from tesseractcli.observability import configure_tracing
+
+    configure_tracing()
     TesseractApp().run()

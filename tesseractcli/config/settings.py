@@ -76,6 +76,16 @@ class Settings(BaseSettings):
     # --- Local GGUF provider ---
     LOCAL_GGUF_MODEL_PATH: str | None = None
 
+    # ===== LangSmith tracing (optional) =====
+    # Off by default - installing the `langsmith` package alone does
+    # NOT start exporting traces; this flag must also be explicitly
+    # set to true. See observability/tracing.py for how these get
+    # bridged into the plain os.environ vars the langsmith SDK reads.
+    LANGSMITH_TRACING: bool = False
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_PROJECT: str = "tesseractcli"
+    LANGSMITH_ENDPOINT: str | None = None  # only needed for self-hosted LangSmith
+
     model_config = SettingsConfigDict(
     env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
     env_file_encoding="utf-8",
