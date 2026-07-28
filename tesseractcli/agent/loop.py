@@ -46,6 +46,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from tesseractcli.config.logger import logger
 from tesseractcli.llm.dispatcher import LLMDispatcher
 from tesseractcli.models.tool_models.tools_result import ToolResult
+from tesseractcli.observability import traceable
 from tesseractcli.tools.approval import approve_tool_call
 from tesseractcli.tools.registry import ToolRegistry
 
@@ -70,6 +71,19 @@ def _build_tool_defs(registry: ToolRegistry) -> list[dict]:
     return tool_defs
 
 
+def _normalize_for_cross_provider_replay(ai_message: AIMessage) -> AIMessage:
+    """Some models return an AIMessage with BOTH `.content` (a narration
+    like "let me check that file...") AND `.tool_calls` populated at
+    the same time. Anthropic tolerates this when the message is replayed
+    back as history, but OpenAI-compatible endpoints (Mistral, Cerebras
+    - see llm/providers/mistral_provider.py, both routed through
+    ChatOpenAI) reject it outright with a 400:
+    'Assistant message must have either content or tool_calls, but not both.' """
+    if ai_message.tool_calls and ai_message.content:
+        return ai_message.model_copy(update={"content": ""})
+    return ai_message
+
+
 def _format_tool_result(result: ToolResult) -> str:
     """What the model sees back for a tool call - success or failure,
     both go back as a normal ToolMessage so the model can react to
@@ -87,13 +101,14 @@ async def _default_approve_fn(tool_name: str, tool_args: dict, workspace_root: P
     return await asyncio.to_thread(approve_tool_call, tool_name, tool_args, workspace_root)
 
 
+@traceable(name="agent_turn", run_type="chain")
 async def run_inner_loop(
     user_input: str,
     messages: list[BaseMessage],
     registry: ToolRegistry,
     dispatcher: LLMDispatcher,
     workspace_root: Path,
-    name_pack: str | None = "main_pack",
+    name_pack: str | None ,
     approve_fn: ApproveFn = _default_approve_fn,
     pinned_model: tuple[str, str] | None = None,
 ) -> str:
@@ -124,6 +139,7 @@ async def run_inner_loop(
         ai_message: AIMessage = await dispatcher.ainvoke_with_fallback(
             messages, tools=tool_defs, pack_name=name_pack, pinned=pinned_model
         )
+        ai_message = _normalize_for_cross_provider_replay(ai_message)
         messages.append(ai_message)
 
         if not ai_message.tool_calls:
