@@ -1,27 +1,135 @@
 schema_version: "1.0"
 
 providers:
-  main_pack:
+
+  fast_main:
+    temperature: 0.20
+    max_tokens: 8192
+
     pool:
-      - provider: groq
-        model: qwen/qwen3.6-27b
+      - provider: mistral
+        model: mistral-small-2506
+
+      - provider: mistral
+        model: open-mistral-nemo
+
     fallback:
-      - provider: cerebras
-        model: llama3.1-8b
-    max_tokens: 4096
-    temperature: 0.7
-  secondary_pack:
+      - provider: mistral
+        model: ministral-14b-2512
+
+      - provider: mistral
+        model: ministral-8b-2512
+
+      # - provider: mistral
+      #   model: ministral-3b-2512
+
+
+  large_main:
+    temperature: 0.15
+    max_tokens: 12288
+    # max_tokens: 16384
+
     pool:
-      - provider: openai
-        model: gpt-4o-mini
+      - provider: mistral
+        model: mistral-large-2512
+
+      - provider: huggingface
+        model: deepseek-ai/DeepSeek-V3.1
+
+      - provider: mistral
+        model: mistral-medium-2508
+
+    fallback:
+      - provider: huggingface
+        model: moonshotai/Kimi-K2-Instruct
+
+      - provider: mistral
+        model: mistral-medium-latest
+
+
+  coding:
+    temperature: 0.10
+    max_tokens: 16384
+
+    pool:
+      - provider: mistral
+        model: codestral-2508
+
+      - provider: mistral
+        model: devstral-2512
+
+    fallback:
+      - provider: huggingface
+        model: Qwen/Qwen3-Coder-480B-A35B-Instruct
+
+
+  small_coding:
+    temperature: 0.10
+    max_tokens: 8192
+
+    pool:
+      - provider: openrouter
+        model: openai/gpt-oss-20b:free
+
+      - provider: huggingface
+        model: openai/gpt-oss-20b
+
     fallback: []
-    max_tokens: 2048
-    temperature: 0.7
+
+
+  reasoning:
+    temperature: 0.20
+    max_tokens: 16384
+
+    pool:
+      - provider: huggingface
+        model: Qwen/Qwen3-235B-A22B-Instruct-2507
+
+      - provider: openrouter
+        model: nvidia/nemotron-3-ultra-550b-a55b:free
+
+    fallback: []
+
+
+  small_reasoning:
+    temperature: 0.20
+    max_tokens: 12288
+
+    pool:
+      - provider: huggingface
+        model: google/gemma-3-27b-it
+
+      - provider: mistral
+        model: mistral-medium-2505
+
+    fallback: []
+
+
+  free:
+    temperature: 0.20
+    max_tokens: 8192
+
+    pool:
+      - provider: openrouter
+        model: openrouter/free
+
+      - provider: openrouter
+        model: poolside/laguna-m.1:free
+
+      - provider: openrouter
+        model: openai/gpt-oss-20b:free
+
+      - provider: openrouter
+        model: nvidia/nemotron-3-ultra-550b-a55b:free
+
+    fallback: []
+
 
 paths:
   data_dir: data
   logs_dir: logs
   cache_dir: cache
+
 
 agent:
   temperature: 0.7
@@ -29,6 +137,6 @@ agent:
   timeout_seconds: 120
   max_context_messages: 40
 
+
 verbose:
   errors: false
-
