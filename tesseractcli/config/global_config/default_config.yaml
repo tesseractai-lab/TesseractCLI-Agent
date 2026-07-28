@@ -133,9 +133,10 @@ paths:
 
 agent:
   temperature: 0.7
-  max_iterations: 10
+  max_iterations: 15
   timeout_seconds: 120
   max_context_messages: 40
+  lazy_tool_loading: false
 
 
 verbose:

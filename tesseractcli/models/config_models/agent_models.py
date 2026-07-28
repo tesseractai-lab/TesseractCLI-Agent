@@ -13,6 +13,16 @@ class AgentConfig(BaseModel):
             allowed per task before the agent must stop.
         timeout_seconds: Maximum wall-clock time, in seconds, allowed
             per task.
+        lazy_tool_loading: If True, tools registered with `core=False`
+            (see tools/registry.py) are withheld from the model until
+            it calls `search_tools` for them, instead of always being
+            sent - see agent/loop.py. Defaults to False: every
+            registered tool's full schema is sent every request
+            regardless of its `core` flag, which is the old/simple
+            behavior and the right default while the tool count is
+            small (the schema-size saving isn't worth an extra
+            search_tools round trip yet). Flip to True once enough
+            tools exist that most turns only touch a few of them.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -21,3 +31,4 @@ class AgentConfig(BaseModel):
     max_iterations: int = Field(default=10, ge=1)
     timeout_seconds: int = Field(default=120, ge=1)
     max_context_messages: int = Field(default=40, ge=1)
+    lazy_tool_loading: bool = Field(default=False)

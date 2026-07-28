@@ -41,26 +41,64 @@ import asyncio
 from pathlib import Path
 from typing import Awaitable, Callable, TypeAlias
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 from tesseractcli.config.logger import logger
 from tesseractcli.llm.dispatcher import LLMDispatcher
 from tesseractcli.models.tool_models.tools_result import ToolResult
 from tesseractcli.observability import traceable
+from tesseractcli.prompts.system_prompt import build_system_prompt
 from tesseractcli.tools.approval import approve_tool_call
 from tesseractcli.tools.registry import ToolRegistry
 
 # (tool_name, tool_args, workspace_root) -> approved?
 ApproveFn : TypeAlias = Callable[[str, dict, Path], Awaitable[bool]]
 
+# Meta-tool name the model calls to pull in a deferred tool's full
+# schema mid-turn. Intercepted directly in the tool-call loop below,
+# never goes through registry.dispatch (it isn't a real registry tool -
+# it mutates which tools are active, which only this loop knows about).
+SEARCH_TOOLS_NAME = "search_tools"
 
-def _build_tool_defs(registry: ToolRegistry) -> list[dict]:
-    """LLM-facing tool schemas, built from (name, schema) pairs so the
-    tool name the model sees matches the registry key exactly - NOT
-    registry.schemas(), which drops the name and would leak the Python
-    class name (e.g. "ReadFileArgs") instead of "read_file"."""
+
+def _search_tools_def() -> dict:
+    return {
+        "name": SEARCH_TOOLS_NAME,
+        "description": (
+            "Look up tools that aren't loaded yet, by keyword (e.g. "
+            "'run shell command'). Loads the matching tool(s)' full "
+            "schema so you can call them right after - use this before "
+            "assuming a capability doesn't exist, instead of telling "
+            "the user you can't do something."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Keywords describing the tool/capability you need.",
+                }
+            },
+            "required": ["query"],
+        },
+    }
+
+
+def _build_tool_defs(registry: ToolRegistry, active: set[str]) -> list[dict]:
+    """LLM-facing tool schemas for the currently-active tool set, built
+    from (name, schema) pairs so the tool name the model sees matches
+    the registry key exactly - NOT registry.schemas(), which drops the
+    name and would leak the Python class name (e.g. "ReadFileArgs")
+    instead of "read_file". `search_tools` is appended whenever any
+    tool is still deferred, so the model always has a way to reach it."""
     tool_defs = []
-    for name, schema in registry.tool_specs():
+    for name, schema in registry.tool_specs(names=active):
         tool_defs.append(
             {
                 "name": name,
@@ -68,7 +106,33 @@ def _build_tool_defs(registry: ToolRegistry) -> list[dict]:
                 "parameters": schema.model_json_schema(),
             }
         )
+    all_names = set(registry.core_tool_names()) | set(registry.deferred_tool_names())
+    if all_names - active:
+        tool_defs.append(_search_tools_def())
     return tool_defs
+
+
+def _run_search_tools(registry: ToolRegistry, active: set[str], query: str) -> str:
+    """Matches `query` against deferred tools' names/descriptions,
+    activates every match (full schema included from the NEXT model
+    call onward), and returns a short summary as the tool result text.
+    Falls back to listing every still-deferred tool if nothing matches,
+    so the model never hits a dead end from an overly specific query."""
+    deferred = registry.deferred_tool_names()
+    briefs = registry.brief_specs(deferred)
+    needle = query.strip().lower()
+    matches = {
+        name: desc
+        for name, desc in briefs.items()
+        if not needle or needle in name.lower() or needle in desc.lower()
+    }
+    if not matches:
+        matches = briefs
+    active.update(matches)
+    if not matches:
+        return "No deferred tools are registered."
+    lines = [f"- {name}: {desc}" for name, desc in sorted(matches.items())]
+    return "Loaded tool schema(s), now callable:\n" + "\n".join(lines)
 
 
 def _normalize_for_cross_provider_replay(ai_message: AIMessage) -> AIMessage:
@@ -131,11 +195,31 @@ async def run_inner_loop(
     """
     max_iterations = dispatcher.max_iterations
 
+    # Prepend the system prompt fresh each turn if `messages` doesn't
+    # already start with one. `insert`, not `append` - PersistentMessageList
+    # only overrides `append` for its save-to-store hook, so this is a
+    # deliberate way to keep the (regenerable, config-derived) system
+    # prompt out of the persisted conversation history.
+    if not messages or not isinstance(messages[0], SystemMessage):
+        messages.insert(0, SystemMessage(content=build_system_prompt(registry, workspace_root)))
+
     messages.append(HumanMessage(content=user_input))
 
-    tool_defs = _build_tool_defs(registry)
+    # Tools start scoped to the "always loaded" (core) set only when
+    # `agent.lazy_tool_loading` is on (see LLMDispatcher.lazy_tool_loading);
+    # otherwise every registered tool's full schema is sent every
+    # request regardless of its `core` flag - the old/simple behavior,
+    # and the default. Full schemas for anything still deferred are
+    # only added once the model calls `search_tools` (see
+    # _run_search_tools) - tool_defs is therefore rebuilt every
+    # iteration, not once up front, since this set can grow mid-turn.
+    if dispatcher.lazy_tool_loading:
+        active_tools: set[str] = set(registry.core_tool_names())
+    else:
+        active_tools = set(registry.core_tool_names()) | set(registry.deferred_tool_names())
 
     for _ in range(max_iterations):
+        tool_defs = _build_tool_defs(registry, active_tools)
         ai_message: AIMessage = await dispatcher.ainvoke_with_fallback(
             messages, tools=tool_defs, pack_name=name_pack, pinned=pinned_model
         )
@@ -151,6 +235,17 @@ async def run_inner_loop(
             name = call["name"]
             args = call["args"]
             call_id = call["id"]
+
+            if name == SEARCH_TOOLS_NAME:
+                content = _run_search_tools(registry, active_tools, str(args.get("query", "")))
+                messages.append(
+                    ToolMessage(
+                        content=content,
+                        tool_call_id=call_id,
+                        additional_kwargs={"tool_name": name, "tool_args": args, "tool_success": True},
+                    )
+                )
+                continue
 
             # Read-only tools (needs_approval=False in the registry)
             # skip the prompt entirely - approve_fn is never even

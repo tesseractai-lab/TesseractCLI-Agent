@@ -64,4 +64,4 @@ def edit_file(
                            error=f"Permission denied editing '{path}'.")
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="edit_file", schema=EditFileArgs, fn=edit_file,needs_approval=True)
+    registry.add(name="edit_file", schema=EditFileArgs, fn=edit_file,needs_approval=True, core=False)

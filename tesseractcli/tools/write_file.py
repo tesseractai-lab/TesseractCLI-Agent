@@ -59,4 +59,4 @@ def write_file(
 
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="write_file", schema=WriteFileArgs, fn=write_file,needs_approval=True)
+    registry.add(name="write_file", schema=WriteFileArgs, fn=write_file,needs_approval=True, core=False)
