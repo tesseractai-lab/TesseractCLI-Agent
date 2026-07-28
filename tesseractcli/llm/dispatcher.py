@@ -83,6 +83,17 @@ class LLMDispatcher:
         already applied to max_context_messages above."""
         return self.resolver.manager.get("agent.max_iterations", default=10)
 
+    @property
+    def lazy_tool_loading(self) -> bool:
+        """Live off the same shared ConfigManager - `agent.lazy_tool_loading`
+        (default False, see config_models/agent_models.py). agent/loop.py
+        reads this once per turn to decide whether `core=False` tools
+        start deferred (True) or are just sent every request like
+        before (False) - so flipping it via `set agent.lazy_tool_loading
+        true` (or a config reload) changes behavior on the very next
+        turn, no restart needed, same as max_iterations above."""
+        return bool(self.resolver.manager.get("agent.lazy_tool_loading", default=False))
+
     def _get_provider(self, name: str) -> BaseLLMProvider:
         if name not in self._PROVIDER_REGISTRY:
             raise ValueError(

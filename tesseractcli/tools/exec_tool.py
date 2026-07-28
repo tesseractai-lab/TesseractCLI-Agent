@@ -108,4 +108,4 @@ def run_command(
 
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="run_command", schema=RunCommandArgs, fn=run_command,needs_approval=True)
+    registry.add(name="run_command", schema=RunCommandArgs, fn=run_command,needs_approval=True, core=False)

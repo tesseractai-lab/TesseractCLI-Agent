@@ -66,4 +66,4 @@ def read_file(
                            error=f"'{path}' is not a valid UTF-8 text file (binary?).")
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="read_file", schema=ReadFileArgs, fn=read_file,needs_approval=False)
+    registry.add(name="read_file", schema=ReadFileArgs, fn=read_file,needs_approval=False, core=False)

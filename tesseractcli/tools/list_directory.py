@@ -57,4 +57,4 @@ def list_directory(
 
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="list_directory", schema=ListDirectoryArgs, fn=list_directory, needs_approval=False)
+    registry.add(name="list_directory", schema=ListDirectoryArgs, fn=list_directory, needs_approval=False, core=False)
