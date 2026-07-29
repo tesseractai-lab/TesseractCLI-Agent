@@ -3,6 +3,7 @@ tesseractcli/llm/providers/cerebras_provider.py
 Cerebras is OpenAI-compatible, so we route through ChatOpenAI with a
 custom base_url instead of a dedicated SDK.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
@@ -22,9 +23,7 @@ class CerebrasProvider(BaseLLMProvider):
 
     def _load_model(self, model_name: str, **kwargs) -> BaseChatModel:
         if not self.config.CEREBRAS_API_KEY:
-            raise ValueError(
-                "CEREBRAS_API_KEY is not set - add it to your .env file."
-            )
+            raise ValueError("CEREBRAS_API_KEY is not set - add it to your .env file.")
 
         rate_limiter = None
         if self.DEFAULT_RATE_LIMIT_RPS:

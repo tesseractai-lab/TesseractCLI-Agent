@@ -2,6 +2,7 @@
 tesseractcli/llm/providers/base.py
 Abstract base class for all LLM providers (LangChain-based).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -19,11 +20,12 @@ class BaseLLMProvider(ABC):
     DEFAULT_MAX_RETRIES: int = 3
     DEFAULT_RATE_LIMIT_RPS: float | None = None
 
-
     def __init__(self) -> None:
         self.config = get_settings()
         self._cache: dict[str, BaseChatModel] = {}
-        self._raw_cache: dict[str, BaseChatModel] = {}   # unwrapped models, keyed same as _cache
+        self._raw_cache: dict[
+            str, BaseChatModel
+        ] = {}  # unwrapped models, keyed same as _cache
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -39,7 +41,6 @@ class BaseLLMProvider(ABC):
         except Exception as e:  # noqa: BLE001 - intentional catch-all for fallback
             logger.error("failed to load '{}': {}", model_name, e)
             return None
-
 
     def get_model_with_tools_safe(
         self, model_name: str, tools: list[dict], **kwargs
@@ -79,10 +80,14 @@ class BaseLLMProvider(ABC):
         cache_key = self._cache_key(model_name, **kwargs)
         if cache_key not in self._cache:
             raw_model = self._get_raw_model(model_name, **kwargs)
-            self._cache[cache_key] = raw_model.with_retry(stop_after_attempt=self.DEFAULT_MAX_RETRIES)
+            self._cache[cache_key] = raw_model.with_retry(
+                stop_after_attempt=self.DEFAULT_MAX_RETRIES
+            )
         return self._cache[cache_key]
 
-    def _get_model_with_tools(self, model_name: str, tools: list[dict], **kwargs) -> BaseChatModel:
+    def _get_model_with_tools(
+        self, model_name: str, tools: list[dict], **kwargs
+    ) -> BaseChatModel:
         """Same underlying model as get_model(), but bind_tools() happens
         BEFORE with_retry() - RunnableRetry doesn't proxy bind_tools, so
         this order is not optional. Not cached across calls (bind_tools

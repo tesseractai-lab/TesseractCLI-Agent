@@ -51,6 +51,7 @@ gets dispatched (e.g. agent.max_iterations hit mid-call), that
 one request's args are never persisted - there's no ToolMessage row
 for it to hang off of. Accepted for now given how rare/edge-case it is.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -93,6 +94,7 @@ def _secure_file(path: Path) -> None:
         path.chmod(_DB_FILE_MODE)
     except OSError:
         logger.warning("failed to set secure permissions on %s", path)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -159,7 +161,11 @@ def _model_meta_row(message: AIMessage) -> dict:
     meta = message.response_metadata or {}
     provider = meta.get("tesseract_provider")
     model = meta.get("tesseract_model")
-    model_name = f"{provider}:{model}" if provider and model else (meta.get("model_name") or meta.get("model"))
+    model_name = (
+        f"{provider}:{model}"
+        if provider and model
+        else (meta.get("model_name") or meta.get("model"))
+    )
 
     usage = message.usage_metadata or {}
     return {
@@ -191,8 +197,12 @@ class ConversationStore:
 
     def __init__(self, workspace_root: Path):
         self.workspace_root = Path(workspace_root).expanduser().resolve()
-        self.workspace_id = workspace_id(self.workspace_root)  # on-disk partition key, stable
-        self.session_id = str(uuid.uuid4())  # fresh every time a workspace is opened/bound
+        self.workspace_id = workspace_id(
+            self.workspace_root
+        )  # on-disk partition key, stable
+        self.session_id = str(
+            uuid.uuid4()
+        )  # fresh every time a workspace is opened/bound
         self.db_path = DB_STORE_DIR / self.workspace_id / "conversation.db"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         _secure_dir(self.db_path.parent)
@@ -211,7 +221,11 @@ class ConversationStore:
         _secure_file(self.db_path)
         self._conn.execute(
             "INSERT INTO sessions (session_id, workspace_path, created_at) VALUES (?, ?, ?)",
-            (self.session_id, str(self.workspace_root), datetime.now(timezone.utc).isoformat()),
+            (
+                self.session_id,
+                str(self.workspace_root),
+                datetime.now(timezone.utc).isoformat(),
+            ),
         )
         self._conn.commit()
 
@@ -247,7 +261,13 @@ class ConversationStore:
                 self._conn.execute(
                     "INSERT INTO tools (tool_call_id, message_id, name, args, success) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (message.tool_call_id, message_id, tool["name"], tool["args"], tool["success"]),
+                    (
+                        message.tool_call_id,
+                        message_id,
+                        tool["name"],
+                        tool["args"],
+                        tool["success"],
+                    ),
                 )
 
             self._conn.commit()

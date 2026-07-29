@@ -8,6 +8,7 @@ markup version with a gradient is built from it at import time.
 
 from __future__ import annotations
 from tesseractcli.config.settings import get_settings
+
 version = get_settings().APP_VERSION
 
 # Plain ASCII art, no color markup.
@@ -23,9 +24,7 @@ ASCII_TITLE = r"""
 # Normalize left indentation while preserving the ASCII shape.
 _lines = ASCII_TITLE.splitlines()
 _common_indent = min(
-    len(line) - len(line.lstrip(" "))
-    for line in _lines
-    if line.strip()
+    len(line) - len(line.lstrip(" ")) for line in _lines if line.strip()
 )
 ASCII_TITLE = "\n".join(line[_common_indent:] for line in _lines)
 

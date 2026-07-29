@@ -1,6 +1,7 @@
 """
 tests/llm/providers/test_google_provider.py
 """
+
 from tesseractcli.llm.providers.google_provider import GoogleProvider
 from tests.llm.providers._contract import ProviderContractMixin
 
@@ -17,4 +18,7 @@ class TestGoogleProvider(ProviderContractMixin):
         provider._get_model(self.model_name)
 
         _, kwargs = patched.call_args
-        assert kwargs["base_url"] == "https://generativelanguage.googleapis.com/v1beta/openai/"
+        assert (
+            kwargs["base_url"]
+            == "https://generativelanguage.googleapis.com/v1beta/openai/"
+        )

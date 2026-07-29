@@ -15,6 +15,7 @@ now lives in config.models (ModelConfig, ModelPack). Resolving a task
 now means resolving a *pack name* straight to a ModelPack, instead of
 looking up a hand-maintained in-memory task table.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -79,7 +80,9 @@ class RoutingResolver:
             )
         return pack.pool[0]
 
-    def resolve_step(self, pack_name: str | None, provider: str, model: str) -> ModelConfig:
+    def resolve_step(
+        self, pack_name: str | None, provider: str, model: str
+    ) -> ModelConfig:
         """Return the exact ModelConfig for `provider`/`model` inside the
         resolved pack's pool+fallback (searched in that order).
 

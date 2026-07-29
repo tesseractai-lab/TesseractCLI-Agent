@@ -2,6 +2,7 @@
 tesseractcli/llm/providers/hf_provider.py
 Routed through ChatOpenAI + custom base_url, same pattern as Cerebras.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel

@@ -19,9 +19,7 @@ def _pack(
     chain - the shape LLMDispatcher expects from RoutingResolver.resolve()."""
     return ModelPack(
         pool=[ModelConfig(provider=provider, model=model)],
-        fallback=[
-            ModelConfig(provider=p, model=m) for p, m in (fallback or [])
-        ],
+        fallback=[ModelConfig(provider=p, model=m) for p, m in (fallback or [])],
         temperature=temperature,
         max_tokens=max_tokens,
     )
@@ -132,9 +130,7 @@ class TestFallbackChain:
         fake_provider.get_model_safe.return_value = _fake_chat_model(content="hi")
         mocker.patch.object(dispatcher, "_get_provider", return_value=fake_provider)
 
-        result = await dispatcher.ainvoke_with_fallback(
-            [HumanMessage(content="hey")]
-        )
+        result = await dispatcher.ainvoke_with_fallback([HumanMessage(content="hey")])
 
         assert result.content == "hi"
 
@@ -158,9 +154,7 @@ class TestFallbackChain:
 
         mocker.patch.object(dispatcher, "_get_provider", side_effect=fake_get_provider)
 
-        result = await dispatcher.ainvoke_with_fallback(
-            [HumanMessage(content="hey")]
-        )
+        result = await dispatcher.ainvoke_with_fallback([HumanMessage(content="hey")])
 
         assert result.content == "from cerebras"
 
@@ -186,16 +180,12 @@ class TestFallbackChain:
 
         mocker.patch.object(dispatcher, "_get_provider", side_effect=fake_get_provider)
 
-        result = await dispatcher.ainvoke_with_fallback(
-            [HumanMessage(content="hey")]
-        )
+        result = await dispatcher.ainvoke_with_fallback([HumanMessage(content="hey")])
 
         assert result.content == "from cerebras"
         assert groq_provider.get_model_safe.return_value.ainvoke.call_count == 1
 
-    async def test_truncates_and_retries_same_step_on_rate_limit_error(
-        self, mocker
-    ):
+    async def test_truncates_and_retries_same_step_on_rate_limit_error(self, mocker):
         main_pack = _pack("groq", "llama3")
         dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
 
@@ -244,9 +234,7 @@ class TestFallbackChain:
         mocker.patch.object(dispatcher, "_get_provider", side_effect=fake_get_provider)
 
         with pytest.raises(RuntimeError, match="exhausted"):
-            await dispatcher.ainvoke_with_fallback(
-                [HumanMessage(content="hey")]
-            )
+            await dispatcher.ainvoke_with_fallback([HumanMessage(content="hey")])
 
 
 class TestTruncateMessages:

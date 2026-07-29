@@ -27,7 +27,9 @@ def test_list_directory_lists_files_and_subdirectories(workspace_root: Path) -> 
     assert result.metadata["item_count"] == 2
 
 
-def test_list_directory_nonexistent_path_returns_failed_result(workspace_root: Path) -> None:
+def test_list_directory_nonexistent_path_returns_failed_result(
+    workspace_root: Path,
+) -> None:
     result = list_directory(workspace_root, path="does_not_exist")
 
     assert result.success is False
@@ -50,7 +52,9 @@ def test_list_directory_rejects_path_escaping_workspace(workspace_root: Path) ->
     assert result.error is not None
 
 
-def test_list_directory_default_path_is_current_workspace_root(workspace_root: Path) -> None:
+def test_list_directory_default_path_is_current_workspace_root(
+    workspace_root: Path,
+) -> None:
     (workspace_root / "a.txt").write_text("x")
 
     # مفيش path متمررة خالص — لازم تستخدم "." كـ default

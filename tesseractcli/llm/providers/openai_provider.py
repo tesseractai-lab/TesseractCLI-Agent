@@ -4,6 +4,7 @@ Direct OpenAI (no custom base_url) - kept separate from the OpenAI-
 compatible providers (Cerebras/Mistral/HF) even though it uses the same
 ChatOpenAI class, so each has its own key/config/rate-limit lifecycle.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel

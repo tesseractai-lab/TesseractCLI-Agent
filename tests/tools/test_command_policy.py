@@ -12,6 +12,7 @@ from tesseractcli.tools.sandbox.command_policy import check_command
 
 # --- الطبقة 1: منع استدعاء shell interpreters مباشرة ---
 
+
 def test_direct_bash_invocation_is_blocked() -> None:
     result = check_command(["bash", "-c", "echo hi"])
 
@@ -27,6 +28,7 @@ def test_shell_interpreter_with_full_path_is_still_blocked() -> None:
 
 
 # --- الطبقة 2: known-dangerous patterns ---
+
 
 def test_rm_rf_root_is_blocked() -> None:
     result = check_command(["rm", "-rf", "/"])
@@ -47,6 +49,7 @@ def test_curl_pipe_to_shell_is_blocked() -> None:
 
 
 # --- الطبقة 3: default-deny allowlist ---
+
 
 def test_git_status_is_safe_and_auto_approved() -> None:
     result = check_command(["git", "status"])

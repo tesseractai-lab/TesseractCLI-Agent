@@ -4,6 +4,7 @@ Routed through ChatOpenAI + custom base_url, same pattern as Cerebras,
 per the agreed design (rather than the native langchain_mistralai
 package) to keep the OpenAI-compatible providers consistent.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel

@@ -35,6 +35,7 @@ Step 6 change (Textual integration): this is now `async def`.
   and it's what lets the Textual UI swap in its own modal-based
   `approve_fn` with zero changes to this file.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -58,7 +59,7 @@ from tesseractcli.tools.approval import approve_tool_call
 from tesseractcli.tools.registry import ToolRegistry
 
 # (tool_name, tool_args, workspace_root) -> approved?
-ApproveFn : TypeAlias = Callable[[str, dict, Path], Awaitable[bool]]
+ApproveFn: TypeAlias = Callable[[str, dict, Path], Awaitable[bool]]
 
 # Meta-tool name the model calls to pull in a deferred tool's full
 # schema mid-turn. Intercepted directly in the tool-call loop below,
@@ -142,7 +143,7 @@ def _normalize_for_cross_provider_replay(ai_message: AIMessage) -> AIMessage:
     back as history, but OpenAI-compatible endpoints (Mistral, Cerebras
     - see llm/providers/mistral_provider.py, both routed through
     ChatOpenAI) reject it outright with a 400:
-    'Assistant message must have either content or tool_calls, but not both.' """
+    'Assistant message must have either content or tool_calls, but not both.'"""
     if ai_message.tool_calls and ai_message.content:
         return ai_message.model_copy(update={"content": ""})
     return ai_message
@@ -157,12 +158,16 @@ def _format_tool_result(result: ToolResult) -> str:
     return f"ERROR: {result.error}"
 
 
-async def _default_approve_fn(tool_name: str, tool_args: dict, workspace_root: Path) -> bool:
+async def _default_approve_fn(
+    tool_name: str, tool_args: dict, workspace_root: Path
+) -> bool:
     """Terminal fallback approve_fn - identical behavior to Step 5
     (renders a preview, blocks on `input("approve? (y/n): ")`), just
     run off the event loop thread so `await approve_fn(...)` is always
     safe to call from async code, terminal or Textual alike."""
-    return await asyncio.to_thread(approve_tool_call, tool_name, tool_args, workspace_root)
+    return await asyncio.to_thread(
+        approve_tool_call, tool_name, tool_args, workspace_root
+    )
 
 
 @traceable(name="agent_turn", run_type="chain")
@@ -172,7 +177,7 @@ async def run_inner_loop(
     registry: ToolRegistry,
     dispatcher: LLMDispatcher,
     workspace_root: Path,
-    name_pack: str | None ,
+    name_pack: str | None,
     approve_fn: ApproveFn = _default_approve_fn,
     pinned_model: tuple[str, str] | None = None,
 ) -> str:
@@ -201,7 +206,9 @@ async def run_inner_loop(
     # deliberate way to keep the (regenerable, config-derived) system
     # prompt out of the persisted conversation history.
     if not messages or not isinstance(messages[0], SystemMessage):
-        messages.insert(0, SystemMessage(content=build_system_prompt(registry, workspace_root)))
+        messages.insert(
+            0, SystemMessage(content=build_system_prompt(registry, workspace_root))
+        )
 
     messages.append(HumanMessage(content=user_input))
 
@@ -216,7 +223,9 @@ async def run_inner_loop(
     if dispatcher.lazy_tool_loading:
         active_tools: set[str] = set(registry.core_tool_names())
     else:
-        active_tools = set(registry.core_tool_names()) | set(registry.deferred_tool_names())
+        active_tools = set(registry.core_tool_names()) | set(
+            registry.deferred_tool_names()
+        )
 
     for _ in range(max_iterations):
         tool_defs = _build_tool_defs(registry, active_tools)
@@ -237,12 +246,18 @@ async def run_inner_loop(
             call_id = call["id"]
 
             if name == SEARCH_TOOLS_NAME:
-                content = _run_search_tools(registry, active_tools, str(args.get("query", "")))
+                content = _run_search_tools(
+                    registry, active_tools, str(args.get("query", ""))
+                )
                 messages.append(
                     ToolMessage(
                         content=content,
                         tool_call_id=call_id,
-                        additional_kwargs={"tool_name": name, "tool_args": args, "tool_success": True},
+                        additional_kwargs={
+                            "tool_name": name,
+                            "tool_args": args,
+                            "tool_success": True,
+                        },
                     )
                 )
                 continue

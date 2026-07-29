@@ -21,7 +21,9 @@ def test_edit_file_replaces_unique_match(workspace_root: Path) -> None:
     assert (workspace_root / "config.py").read_text() == "DEBUG = True\nNAME = 'app'\n"
 
 
-def test_edit_file_old_str_not_found_returns_failed_result(workspace_root: Path) -> None:
+def test_edit_file_old_str_not_found_returns_failed_result(
+    workspace_root: Path,
+) -> None:
     (workspace_root / "config.py").write_text("DEBUG = False\n")
 
     result = edit_file(
@@ -37,7 +39,9 @@ def test_edit_file_old_str_not_found_returns_failed_result(workspace_root: Path)
     assert (workspace_root / "config.py").read_text() == "DEBUG = False\n"
 
 
-def test_edit_file_non_unique_old_str_returns_failed_result(workspace_root: Path) -> None:
+def test_edit_file_non_unique_old_str_returns_failed_result(
+    workspace_root: Path,
+) -> None:
     (workspace_root / "config.py").write_text("x = 1\nx = 1\n")
 
     result = edit_file(

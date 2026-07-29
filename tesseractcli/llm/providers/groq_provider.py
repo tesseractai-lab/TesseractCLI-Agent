@@ -1,6 +1,7 @@
 """
 tesseractcli/llm/providers/groq_provider.py
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel

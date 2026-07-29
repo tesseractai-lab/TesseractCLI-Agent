@@ -1,6 +1,7 @@
 """
 tesseractcli/llm/providers/anthropic_provider.py
 """
+
 from __future__ import annotations
 
 from langchain_anthropic import ChatAnthropic
@@ -15,9 +16,7 @@ class AnthropicProvider(BaseLLMProvider):
 
     def _load_model(self, model_name: str, **kwargs) -> BaseChatModel:
         if not self.config.ANTHROPIC_API_KEY:
-            raise ValueError(
-                "ANTHROPIC_API_KEY is not set - add it to your .env file."
-            )
+            raise ValueError("ANTHROPIC_API_KEY is not set - add it to your .env file.")
 
         rate_limiter = None
         if self.DEFAULT_RATE_LIMIT_RPS:

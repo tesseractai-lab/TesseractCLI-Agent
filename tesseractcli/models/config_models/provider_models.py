@@ -1,5 +1,4 @@
-
-""" tesseractcli/models/config_models/provider_models"""
+"""tesseractcli/models/config_models/provider_models"""
 
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +17,9 @@ class ModelConfig(BaseModel):
     model_config = ConfigDict(frozen=False, extra="forbid")
 
     provider: str = Field(..., min_length=1, description="Model provider name.")
-    model: str = Field(..., min_length=1, description="Provider-specific model identifier.")
+    model: str = Field(
+        ..., min_length=1, description="Provider-specific model identifier."
+    )
 
     def matches(self, provider: str, model: str) -> bool:
         """Check whether this entry matches the given provider/model pair.
@@ -57,4 +58,3 @@ class ModelPack(BaseModel):
     temperature: float = Field(
         default=0.7, ge=0.0, le=2.0, description="Sampling temperature."
     )
-

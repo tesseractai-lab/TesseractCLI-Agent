@@ -1,6 +1,7 @@
 """
 tesseractcli/config/settings.py
 """
+
 import os
 from enum import StrEnum
 from dotenv import dotenv_values
@@ -11,10 +12,6 @@ from functools import lru_cache
 
 
 def _resolve_base_dir() -> Path:
-    """
-    بيسمح بعمل override لـ BASE_DIR عن طريق env var - مهم جدًا للتستات،
-    عشان importlib.reload() يقدر يعيد قراءتها من مكان مؤقت بدل المشروع الحقيقي.
-    """
     override = os.getenv("TESSERACT_BASE_DIR")
     if override:
         return Path(override)
@@ -34,7 +31,11 @@ class EnvFileMode(StrEnum):
 
 def _resolve_env_mode() -> EnvFileMode:
     raw = _main_values.get("ENV_MODE", "dev").strip('"').lower()
-    return EnvFileMode.PRODUCTION if raw in ("prod", "production") else EnvFileMode.DEVELOPMENT
+    return (
+        EnvFileMode.PRODUCTION
+        if raw in ("prod", "production")
+        else EnvFileMode.DEVELOPMENT
+    )
 
 
 ENV_MODE = _resolve_env_mode()
@@ -42,7 +43,6 @@ MODE_ENV = BASE_DIR / f".env.{ENV_MODE.value}"
 
 
 class Settings(BaseSettings):
-
     ENV_MODE: EnvFileMode = Field(...)
 
     APP_NAME: str = Field(..., max_length=100)
@@ -91,9 +91,12 @@ class Settings(BaseSettings):
     LANGSMITH_ENDPOINT: str | None = None  # only needed for self-hosted LangSmith
 
     model_config = SettingsConfigDict(
-    env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
-    env_file_encoding="utf-8",
-    extra="ignore",)
+        env_file=(MAIN_ENV, MODE_ENV),  # mode-specific override
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()

@@ -4,19 +4,20 @@ tesseractcli/tools/list_directory.py
 
 import time
 from pathlib import Path
-from pydantic import BaseModel, Field
 
-from tesseractcli.models.tool_models import ToolResult, ListDirectoryMetadata ,ListDirectoryArgs
+from tesseractcli.models.tool_models import (
+    ToolResult,
+    ListDirectoryMetadata,
+    ListDirectoryArgs,
+)
 from tesseractcli.models.exceptions import PathEscapesWorkspaceError
 from tesseractcli.tools.sandbox import resolve_in_workspace
 from tesseractcli.tools.registry import ToolRegistry
 
 
-
-
 def list_directory(
-        workspace_root: Path,
-        path: str = ".",
+    workspace_root: Path,
+    path: str = ".",
 ) -> ToolResult:
 
     started = time.monotonic()
@@ -26,12 +27,20 @@ def list_directory(
         full_path = resolve_in_workspace(workspace_root, path)
 
         if not full_path.exists():
-            return ToolResult(tool_name="list_directory", success=False, output="",
-                               error=f"Directory '{path}' not found.")
+            return ToolResult(
+                tool_name="list_directory",
+                success=False,
+                output="",
+                error=f"Directory '{path}' not found.",
+            )
 
         if not full_path.is_dir():
-            return ToolResult(tool_name="list_directory", success=False, output="",
-                               error=f"'{path}' is not a directory.")
+            return ToolResult(
+                tool_name="list_directory",
+                success=False,
+                output="",
+                error=f"'{path}' is not a directory.",
+            )
 
         entries = sorted(full_path.iterdir(), key=lambda p: p.name)
 
@@ -47,14 +56,28 @@ def list_directory(
         metadata["item_count"] = len(entries)
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
 
-        return ToolResult(tool_name="list_directory", success=True, output=output, metadata=metadata)
+        return ToolResult(
+            tool_name="list_directory", success=True, output=output, metadata=metadata
+        )
 
     except PathEscapesWorkspaceError as e:
-        return ToolResult(tool_name="list_directory", success=False, output="", error=str(e))
+        return ToolResult(
+            tool_name="list_directory", success=False, output="", error=str(e)
+        )
     except PermissionError:
-        return ToolResult(tool_name="list_directory", success=False, output="",
-                           error=f"Permission denied to access '{path}'.")
+        return ToolResult(
+            tool_name="list_directory",
+            success=False,
+            output="",
+            error=f"Permission denied to access '{path}'.",
+        )
 
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="list_directory", schema=ListDirectoryArgs, fn=list_directory, needs_approval=False, core=False)
+    registry.add(
+        name="list_directory",
+        schema=ListDirectoryArgs,
+        fn=list_directory,
+        needs_approval=False,
+        core=False,
+    )

@@ -25,6 +25,7 @@ any) was active before it - so switching workspaces mid-run
 directory. The bootstrap sink from `config/logger.py` is left running
 throughout and is never touched here.
 """
+
 from __future__ import annotations
 
 import re
@@ -108,9 +109,9 @@ def init_workspace_logging(workspace_root: str | Path) -> Path:
         # One file per session, closed for good when the process exits
         # or the workspace changes - no rotation/retention needed here,
         # that's for the long-lived bootstrap/global sinks only.
-        serialize=not IS_DEV,   # JSON in prod, plain text in dev
+        serialize=not IS_DEV,  # JSON in prod, plain text in dev
         backtrace=IS_DEV,
-        diagnose=IS_DEV,        # never leak local variable values in prod
+        diagnose=IS_DEV,  # never leak local variable values in prod
         encoding="utf-8",
     )
 

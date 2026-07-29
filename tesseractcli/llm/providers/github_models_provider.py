@@ -4,6 +4,7 @@ GitHub Models exposes an OpenAI-compatible inference endpoint, auth'd
 with a GitHub personal access token (not the same as a repo-scoped
 GITHUB_TOKEN some CI setups use, hence the distinct settings field name).
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel

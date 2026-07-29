@@ -4,6 +4,7 @@ Built on the ideas mined from TesseractResearch's old dispatcher, layered
 on top of the new BaseLLMProvider (which already solves the "rebuilding
 the model on every loop iteration" problem via its internal cache).
 """
+
 from __future__ import annotations
 
 import random
@@ -13,10 +14,21 @@ from langchain_core.messages import BaseMessage, ToolMessage
 
 from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.logger import logger
-from tesseractcli.llm.providers import(AnthropicProvider, BaseLLMProvider, CerebrasProvider,
-                                    CohereProvider, GitHubModelsProvider, GroqProvider, HuggingFaceProvider,
-                                    LocalGGUFProvider, MistralProvider, OpenAIProvider, OpenRouterProvider,
-                                    TogetherProvider,GoogleProvider)
+from tesseractcli.llm.providers import (
+    AnthropicProvider,
+    BaseLLMProvider,
+    CerebrasProvider,
+    CohereProvider,
+    GitHubModelsProvider,
+    GroqProvider,
+    HuggingFaceProvider,
+    LocalGGUFProvider,
+    MistralProvider,
+    OpenAIProvider,
+    OpenRouterProvider,
+    TogetherProvider,
+    GoogleProvider,
+)
 from tesseractcli.llm.routing import RoutingResolver, get_routing_resolver
 
 _RATE_LIMIT_SIZE_MARKERS = (
@@ -126,7 +138,9 @@ class LLMDispatcher:
         provider = self._get_provider(primary.provider)
         logger.debug(
             "get_llm → pack={} provider={} model={}",
-            pack_name, primary.provider, primary.model,
+            pack_name,
+            primary.provider,
+            primary.model,
         )
         return provider.get_model_safe(
             primary.model,
@@ -315,7 +329,6 @@ class LLMDispatcher:
             "tesseract_max_tokens": pack.max_tokens,
         }
         return message
-
 
     @staticmethod
     def _primary_of(pack: ModelPack, pack_name: str | None) -> ModelConfig:

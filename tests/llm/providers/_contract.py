@@ -8,6 +8,7 @@ NOT collected directly by pytest (no test_ functions at module level,
 and the mixin itself is abstract/incomplete without the attributes a
 subclass provides).
 """
+
 from __future__ import annotations
 
 import pytest

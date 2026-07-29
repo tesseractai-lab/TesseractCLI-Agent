@@ -15,6 +15,7 @@ file logging is layered on top of this by
 `tesseractcli.logging.workspace.init_workspace_logging()`, which adds
 its own sink alongside (not instead of) the bootstrap one below.
 """
+
 import os
 import sys
 from pathlib import Path
@@ -80,9 +81,9 @@ if IS_DEV:
             "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
             "{name}:{function}:{line} - {message}"
         ),
-        serialize=False,   # نص عادي، مش JSON - أسهل فى القراءة وقت التطوير
+        serialize=False,  # نص عادي، مش JSON - أسهل فى القراءة وقت التطوير
         backtrace=True,
-        diagnose=True,     # آمن هنا لأنه ملف محلي وقت التطوير بس
+        diagnose=True,  # آمن هنا لأنه ملف محلي وقت التطوير بس
         encoding="utf-8",  # مهم على ويندوز، الـ default مش UTF-8 دايمًا
     )
 else:
@@ -92,9 +93,9 @@ else:
         rotation=settings.LOG_ROTATION,
         retention=settings.LOG_RETENTION,
         compression="zip",
-        serialize=True,     # JSON structured logging
+        serialize=True,  # JSON structured logging
         backtrace=False,
-        diagnose=False,     # مهم أمنيًا: يمنع تسريب قيم متغيرات فى ملف prod
+        diagnose=False,  # مهم أمنيًا: يمنع تسريب قيم متغيرات فى ملف prod
         encoding="utf-8",
     )
 

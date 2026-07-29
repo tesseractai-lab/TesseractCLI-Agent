@@ -72,9 +72,7 @@ class WelcomeScreen(Screen):
                     yield Static(self._render_logo(), id="logo")
                     yield Static(TAGLINE, id="tagline")
                     yield Static(self._status_text(ready=False), id="status")
-                    yield Static(
-                        "[dim]press any key to continue[/dim]", id="hint"
-                    )
+                    yield Static("[dim]press any key to continue[/dim]", id="hint")
 
     def on_mount(self) -> None:
         # Reveal "System ready" a beat after the screen appears, so it
@@ -83,9 +81,7 @@ class WelcomeScreen(Screen):
 
     def _render_logo(self):
         logo = (
-            GRADIENT_LOGO
-            if self.app.size.width >= LOGO_MIN_WIDTH
-            else FALLBACK_TITLE
+            GRADIENT_LOGO if self.app.size.width >= LOGO_MIN_WIDTH else FALLBACK_TITLE
         )
 
         return Panel(
@@ -96,7 +92,7 @@ class WelcomeScreen(Screen):
         )
 
     def _status_text(self, ready: bool) -> str:
-        line1 = f"888888888="
+        line1 = "888888888="
         # line1 = f"[dim]Working on:[/dim] {self._workspace_path}"
         line2 = (
             "[green]✓ System ready[/green]"

@@ -3,6 +3,7 @@ tesseractcli/models/exceptions.py
 
 """
 
+
 class SandboxError(Exception):
     """Base class for all sandbox-related errors."""
 
@@ -22,6 +23,7 @@ class CommandNotAllowedError(SandboxError):
 
 class ResourceLimitExceededError(SandboxError):
     """Raised when a process exceeds CPU/memory/time limits. (future use)"""
+
 
 class ConfigError(Exception):
     """Base class for all configuration-related errors.
@@ -63,12 +65,14 @@ class ConfigPackError(ConfigError):
     renaming, or reading a pack that does not exist.
     """
 
+
 class ConfigModelError(ConfigError):
     """Raised for errors related to model entries inside a provider pack.
 
     Examples include removing a model that is not present in a pack's
     pool, or referencing an unknown pack while managing its models.
     """
+
 
 class SensitiveFileBlocked(Exception):
     """Raised when a path matches a sensitive-file denylist pattern."""

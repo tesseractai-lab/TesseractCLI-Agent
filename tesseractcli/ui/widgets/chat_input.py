@@ -68,7 +68,9 @@ class ChatTextArea(TextArea):
         super().__init__(*args, **kwargs)
         self.command_choices: list[str] = []
 
-    async def _on_key(self, event) -> None:  # events.Key, left untyped to avoid an unused import
+    async def _on_key(
+        self, event
+    ) -> None:  # events.Key, left untyped to avoid an unused import
         if event.key == "enter":
             event.stop()
             event.prevent_default()
@@ -96,11 +98,15 @@ class ChatTextArea(TextArea):
         if not text:
             return
         matches = sorted(
-            (choice for choice in self.command_choices if choice.startswith(text) and choice != text),
+            (
+                choice
+                for choice in self.command_choices
+                if choice.startswith(text) and choice != text
+            ),
             key=len,
         )
         if matches:
-            self.suggestion = matches[0][len(text):]
+            self.suggestion = matches[0][len(text) :]
 
     @property
     def value(self) -> str:

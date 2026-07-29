@@ -3,6 +3,7 @@ tesseractcli/llm/providers/cohere_provider.py
 Cohere has a free "trial" API key tier - separate rate limits from paid
 keys, but the same LangChain integration either way.
 """
+
 from __future__ import annotations
 
 from langchain_cohere import ChatCohere

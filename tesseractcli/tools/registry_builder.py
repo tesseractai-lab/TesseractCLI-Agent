@@ -1,6 +1,12 @@
-
-from tesseractcli.tools import write_file, read_file, edit_file,exec_tool,list_directory
+from tesseractcli.tools import (
+    write_file,
+    read_file,
+    edit_file,
+    exec_tool,
+    list_directory,
+)
 from tesseractcli.tools.registry import ToolRegistry
+
 
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()

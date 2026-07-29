@@ -72,7 +72,9 @@ def render_write_diff(full_path: Path, new_content: str, context_lines: int = 3)
     return f"{BOLD}{full_path}{RESET}\n" + "\n".join(colored)
 
 
-def render_edit_diff(path: str, old_str: str, new_str: str, context_lines: int = 3) -> str:
+def render_edit_diff(
+    path: str, old_str: str, new_str: str, context_lines: int = 3
+) -> str:
     """Diff preview for edit_file. Unlike render_write_diff, old_str/new_str
     come directly from the tool call itself — no need to read anything
     from disk. Note: since old_str is wholesale replaced by new_str (not a

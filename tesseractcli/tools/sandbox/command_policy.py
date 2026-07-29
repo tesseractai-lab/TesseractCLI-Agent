@@ -38,14 +38,23 @@ import re
 # Shell interpreters that must never be invoked directly, since doing so
 # reintroduces shell-script interpretation even under shell=False.
 SHELL_INTERPRETERS: set[str] = {
-    "bash", "sh", "zsh", "dash", "ksh", "csh", "fish",
-    "cmd", "cmd.exe", "powershell", "pwsh",
+    "bash",
+    "sh",
+    "zsh",
+    "dash",
+    "ksh",
+    "csh",
+    "fish",
+    "cmd",
+    "cmd.exe",
+    "powershell",
+    "pwsh",
 }
 
 DANGEROUS_PATTERNS: list[str] = [
     r"rm\s+-rf\s+/(?:\s|$)",
     r"\bsudo\b",
-    r":\(\)\{.*:\|:&.*\};:",       # fork bomb
+    r":\(\)\{.*:\|:&.*\};:",  # fork bomb
     r"dd\s+if=.*of=/dev/(sd|nvme|hd)",
     r"chmod\s+-R\s+777\s+/",
     r"curl[^|]*\|\s*(sh|bash)\b",
@@ -58,9 +67,17 @@ DANGEROUS_PATTERNS: list[str] = [
 # confirmation step. Deliberately small and conservative — default-deny,
 # not default-allow.
 SAFE_READONLY_PREFIXES: set[str] = {
-    "ls", "cat", "grep", "find", "pwd", "echo",
-    "git status", "git diff", "git log",
-    "pytest", "python -m pytest",
+    "ls",
+    "cat",
+    "grep",
+    "find",
+    "pwd",
+    "echo",
+    "git status",
+    "git diff",
+    "git log",
+    "pytest",
+    "python -m pytest",
 }
 
 
@@ -68,7 +85,9 @@ class CommandPolicyResult:
     """Outcome of a command_policy check. Distinct from ToolResult on
     purpose — this is a pre-execution decision, not an execution result."""
 
-    def __init__(self, blocked: bool, requires_approval: bool, reason: str | None = None):
+    def __init__(
+        self, blocked: bool, requires_approval: bool, reason: str | None = None
+    ):
         self.blocked = blocked
         self.requires_approval = requires_approval
         self.reason = reason
@@ -77,7 +96,8 @@ class CommandPolicyResult:
 def check_command(command: list[str]) -> CommandPolicyResult:
     if not command:
         return CommandPolicyResult(
-            blocked=True, requires_approval=False,
+            blocked=True,
+            requires_approval=False,
             reason="Empty command.",
         )
 
@@ -103,10 +123,14 @@ def check_command(command: list[str]) -> CommandPolicyResult:
             )
 
     # Layer 3: default-deny allowlist for auto-approval.
-    is_safe_readonly = any(joined.startswith(prefix) for prefix in SAFE_READONLY_PREFIXES)
+    is_safe_readonly = any(
+        joined.startswith(prefix) for prefix in SAFE_READONLY_PREFIXES
+    )
 
     return CommandPolicyResult(
         blocked=False,
         requires_approval=not is_safe_readonly,
-        reason=None if is_safe_readonly else "Command is not in the read-only allowlist.",
+        reason=None
+        if is_safe_readonly
+        else "Command is not in the read-only allowlist.",
     )
