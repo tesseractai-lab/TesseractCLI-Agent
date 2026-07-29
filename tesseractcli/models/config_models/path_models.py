@@ -13,13 +13,11 @@ class PathsConfig(BaseModel):
 
     Attributes:
         data_dir: Directory used to store application data.
-        logs_dir: Directory used to store log files.
         cache_dir: Directory used for cached artifacts.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     data_dir: Path = Field(default=Path("data"), description="Application data directory.")
-    logs_dir: Path = Field(default=Path("logs"), description="Log output directory.")
     cache_dir: Path = Field(default=Path("cache"), description="Cache directory.")
 

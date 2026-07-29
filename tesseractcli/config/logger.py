@@ -1,39 +1,78 @@
-"""tesseractcli/config/logger.py"""
+"""tesseractcli/config/logger.py
+
+Workspace-agnostic logger bootstrap. Owns exactly two things:
+
+  - the console sink (stderr) - dev only. The app runs as a Textual
+    TUI in production, and a raw log line written to stderr while the
+    TUI owns the terminal corrupts the screen, so no console sink is
+    ever added outside of dev.
+  - a small "bootstrap" file sink that catches anything logged before
+    a workspace has been picked (startup, `tesseract settings`, an
+    error during workspace selection itself).
+
+This module has no knowledge of workspaces. Per-workspace, per-session
+file logging is layered on top of this by
+`tesseractcli.logging.workspace.init_workspace_logging()`, which adds
+its own sink alongside (not instead of) the bootstrap one below.
+"""
+import os
 import sys
+from pathlib import Path
+
 from loguru import logger
 
-from .settings import get_settings, EnvFileMode, BASE_DIR
+from .settings import get_settings, EnvFileMode
 
 settings = get_settings()
 
 logger.remove()
 
-_is_dev = settings.ENV_MODE == EnvFileMode.DEVELOPMENT
+IS_DEV = settings.ENV_MODE == EnvFileMode.DEVELOPMENT
 
-# ===== Console sink (dev + prod) =====
-logger.add(
-    sys.stderr,
-    level=settings.LOG_LEVEL,
-    colorize=_is_dev,
-    format=(
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-        "<level>{message}</level>"
-    ),
-    backtrace=_is_dev,
-    diagnose=_is_dev,
-)
-
-# ===== File sink (dev + prod) =====
-# لازم يبقى نسبي لـ BASE_DIR مش لـ cwd، وإلا ملفات اللوج هتتكتب فى مكان
-# مختلف حسب مكان تشغيل الـ process (وده بالظبط اللي كان بيكسر التستات)
-log_dir = BASE_DIR / settings.LOG_DIR
-log_dir.mkdir(parents=True, exist_ok=True)
-
-if _is_dev:
+# ===== Console sink (dev only) =====
+# Never added in production - see module docstring.
+if IS_DEV:
     logger.add(
-        log_dir / "tesseract_dev_{time:YYYY-MM-DD}.log",
+        sys.stderr,
+        level=settings.LOG_LEVEL,
+        colorize=True,
+        format=(
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+            "<level>{message}</level>"
+        ),
+        backtrace=True,
+        diagnose=True,
+    )
+
+
+def _resolve_logs_root() -> Path:
+    """`~/.tesseract/logs` by default. Overridable via `TESSERACT_LOGS_DIR`
+    (same override convention as `TESSERACT_BASE_DIR` in settings.py)
+    so tests never write into the real home directory."""
+    override = os.getenv("TESSERACT_LOGS_DIR")
+    if override:
+        return Path(override)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    return project_root / "app_config" / "logs"
+
+
+# Root of ALL log output, workspace-specific or not - re-exported so
+# `tesseractcli/logging/workspace.py` builds per-workspace paths under
+# the exact same root rather than re-deriving it.
+LOGS_ROOT = _resolve_logs_root()
+
+# ===== Bootstrap file sink (dev + prod) =====
+# Catches everything logged before a workspace is bound. Left running
+# for the lifetime of the process - init_workspace_logging() only ever
+# *adds* a sink, it never removes this one.
+_bootstrap_dir = LOGS_ROOT / "_bootstrap"
+_bootstrap_dir.mkdir(parents=True, exist_ok=True)
+
+if IS_DEV:
+    logger.add(
+        _bootstrap_dir / "tesseract_dev_{time:YYYY-MM-DD}.log",
         level=settings.LOG_LEVEL,
         rotation=settings.LOG_ROTATION,
         retention=settings.LOG_RETENTION,
@@ -48,7 +87,7 @@ if _is_dev:
     )
 else:
     logger.add(
-        log_dir / "tesseract_prod_{time:YYYY-MM-DD}.log",
+        _bootstrap_dir / "tesseract_prod_{time:YYYY-MM-DD}.log",
         level=settings.LOG_LEVEL,
         rotation=settings.LOG_ROTATION,
         retention=settings.LOG_RETENTION,
@@ -59,4 +98,4 @@ else:
         encoding="utf-8",
     )
 
-__all__ = ["logger"]
+__all__ = ["logger", "LOGS_ROOT", "IS_DEV"]

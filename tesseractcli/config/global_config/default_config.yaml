@@ -127,7 +127,6 @@ providers:
 
 paths:
   data_dir: data
-  logs_dir: logs
   cache_dir: cache
 
 

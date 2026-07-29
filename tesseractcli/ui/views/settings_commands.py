@@ -23,7 +23,7 @@ Grammar (bare words, case-insensitive first token):
     yaml                                     view the raw global_config.yaml (read-only)
 
 `set`/`get` use the same dot-notation as `ConfigManager.get`/`.set`
-(e.g. `paths.logs_dir`, `agent.temperature`,
+(e.g. `paths.data_dir`, `agent.temperature`,
 `providers.main_pack.temperature`) so every field in global_config.yaml
 is reachable, not just packs/models.
 """

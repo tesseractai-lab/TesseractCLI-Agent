@@ -25,7 +25,7 @@ Two ways to run it now:
         tesseract settings --add model --pack vision --provider openai --model gpt-4o-mini --fallback
         tesseract settings --remove model --pack vision --provider openai --model gpt-4o-mini
         tesseract settings --remove pool --pack vision
-        tesseract settings --set paths.logs_dir /tmp/tesseract-logs
+        tesseract settings --set paths.data_dir /tmp/tesseract-data
         tesseract settings --get agent.temperature
 
 This subcommand reuses the exact same `ConfigManager`/`PacksManager`
@@ -62,7 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     settings.add_argument("--provider", help="provider name (required with --add/--remove model)")
     settings.add_argument("--model", help="model identifier (required with --add/--remove model)")
     settings.add_argument("--fallback", action="store_true", help="target the fallback list instead of the primary pool")
-    settings.add_argument("--set", nargs=2, metavar=("PATH", "VALUE"), help="set a dot-notation config value, e.g. paths.logs_dir /tmp/logs")
+    settings.add_argument("--set", nargs=2, metavar=("PATH", "VALUE"), help="set a dot-notation config value, e.g. paths.data_dir /tmp/data")
     settings.add_argument("--get", metavar="PATH", help="read a dot-notation config value, e.g. agent.temperature")
 
     return parser
