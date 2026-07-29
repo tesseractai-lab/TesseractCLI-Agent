@@ -227,3 +227,4 @@ tesseractcli.egg-info/
 !.env.dev.example
 !.env.prod.example
 .vscode/*
+app_config/*

@@ -26,33 +26,78 @@ from tesseractcli.ui.views.box import render_box
 if TYPE_CHECKING:
     from tesseractcli.ui.app import TesseractApp
 
+# Column widths for the command table below. Previously each row's
+# spacing between "command", "(aliases)", and the description was
+# hand-typed - since the command/alias text is a different length on
+# almost every line, the description column landed at a different
+# screen position row to row (it only ever lined up by accident on a
+# handful of rows). Built from a plain (command, aliases, description,
+# continuation_lines) table instead, so every row is padded to the
+# same two column widths and the description column is always
+# vertically aligned, continuation lines included.
+_CMD_COL = 30
+_ALIAS_COL = 22
+
+
+def _row(command: str, aliases: str, description: str, *continuation: str) -> str:
+    """One command row, left-padded to `_CMD_COL`/`_ALIAS_COL`, plus
+    any continuation lines (extra description-only lines) indented to
+    line up under the description column. `command`/`aliases` may
+    contain a Rich-markup-escaped literal bracket (``\\[pack]``) for a
+    placeholder like ``[pack]`` - the leading backslash is stripped by
+    Rich at render time and so must not count towards the padding
+    width, or that row\'s description column drifts by one space.
+    """
+    cmd_pad = max(_CMD_COL - (len(command) - command.count("\\")), 0)
+    alias_pad = max(_ALIAS_COL - (len(aliases) - aliases.count("\\")), 0)
+    first = f"  {command}{' ' * cmd_pad}{aliases}{' ' * alias_pad}{description}\n"
+    indent = " " * (2 + _CMD_COL + _ALIAS_COL)
+    rest = "".join(f"{indent}{line}\n" for line in continuation)
+    return first + rest
+
+
 GLOBAL_HELP_TEXT = (
     "[bold #b98cff]Navigation[/bold #b98cff]\n"
-    "  chat                                        go to the chat\n"
-    "  settings         (-cfg, --config)            open settings\n"
-    "  home                                         go to the home screen\n"
-    "  workspace        (-ws, --workspace)           change the workspace folder\n\n"
+    + _row("chat", "", "go to the chat")
+    + _row("settings", "(-cfg, --config)", "open settings")
+    + _row("home", "", "go to the home screen")
+    + _row("workspace", "(-ws, --workspace)", "change the workspace folder")
+    + "\n"
     "[bold #4dd8ff]Model[/bold #4dd8ff]\n"
-    "  model                                        pick a different model pack\n"
-    "                                                (also: '+ Add new pack' - asks y/n to activate\n"
-    "                                                it once added; 'Cancel' in the list)\n"
-    "  -cfg model [pack]                             switch pack without leaving chat\n"
-    "                                                (no pack name -> opens the picker instead)\n"
-    "  -cfg -ws [path]                                switch workspace without leaving chat\n"
-    "                                                (no path -> opens the interactive prompt instead)\n"
-    "  -cfg <any settings command>                    run it inline, e.g. -cfg -a -p x y z,\n"
-    "                                                -cfg -rn pack old new, -cfg -rm -p mypack\n"
-    "                                                (-rm -p asks y/n before deleting the pack)\n\n"
+    + _row(
+        "model", "", "pick a different model pack",
+        "(also: '+ Add new pack' - asks y/n to activate it once added;",
+        "'Cancel' in the list)",
+    )
+    + _row(
+        "-cfg model \\[pack]", "", "switch pack without leaving chat",
+        "(no pack name -> opens the picker instead)",
+    )
+    + _row(
+        "-cfg -ws \\[path]", "", "switch workspace without leaving chat",
+        "(no path -> opens the interactive prompt instead)",
+    )
+    + _row(
+        "-cfg <settings command>", "", "run it inline, e.g. -cfg -a -p x y z,",
+        "-cfg -rn pack old new, -cfg -rm -p mypack",
+        "(-rm -p asks y/n before deleting the pack)",
+    )
+    + "\n"
     "[bold #4ddb9e]Utility[/bold #4ddb9e]\n"
-    "  copy             (-c)                        copy the last agent reply\n"
-    "  clear            (-cl, --clear, cls)          clear the terminal\n"
-    "  reset [temp]     (-rst, --reset)               clear temp memory (LLM context),\n"
-    "                                                asks for y/n; conversation.db is untouched\n"
-    "                                                (also: -cfg reset [temp])\n"
-    "  reload [cfg]     (-rl, --reload)               re-read global_config.yaml from disk\n"
-    "                                                (aliases: cfg/config/settings; also: -cfg reload [cfg])\n"
-    "  help             (-h, --help, ?)              show this help\n"
-    "  exit / quit      (-q, --quit)                quit TesseractCLI\n\n"
+    + _row("copy", "(-c)", "copy the last agent reply")
+    + _row("expand", "(-e, --expand)", "show the full text of the last truncated input")
+    + _row("clear", "(-cl, --clear, cls)", "clear the terminal")
+    + _row(
+        "reset \\[temp]", "(-rst, --reset)", "clear temp memory (LLM context), asks for y/n;",
+        "conversation.db is untouched (also: -cfg reset \\[temp])",
+    )
+    + _row(
+        "reload \\[cfg]", "(-rl, --reload)", "re-read global_config.yaml from disk",
+        "(aliases: cfg/config/settings; also: -cfg reload \\[cfg])",
+    )
+    + _row("help", "(-h, --help, ?)", "show this help")
+    + _row("exit / quit", "(-q, --quit)", "quit TesseractCLI")
+    + "\n"
     # "[dim]Shortcut convention: a single leading '-' is a short flag (-h, -cfg,\n"
     # "-q, -c, -cl) and a leading '--' spells the same thing out in full (--help,\n"
     # "--config, --quit, --clear) - the same short/long option shape as any\n"

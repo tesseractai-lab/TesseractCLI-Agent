@@ -49,7 +49,7 @@ from tesseractcli.models.exceptions import ConfigError
 from tesseractcli.tools.registry_builder import build_registry
 from tesseractcli.ui.views import settings_commands
 from tesseractcli.ui.views.approval_view import ToolCallInfo, render_approval_preview
-from tesseractcli.ui.views.banner import build_banner_panel, build_tagline
+from tesseractcli.ui.views.banner import build_banner_panel
 from tesseractcli.ui.views.box import render_box
 from tesseractcli.ui.views.help_view import render_help
 from tesseractcli.ui.views.home_view import render_home
@@ -95,6 +95,7 @@ GLOBAL_ALIASES = {
     "--home": "home",
     "--model": "model",
     "-c": "copy", "copy": "copy",
+    "-e": "expand", "--expand": "expand", "expand": "expand",
     "-cls": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
     "-p": "packs", "--packs": "packs", "packs": "packs",
     "-ws": "workspace", "--workspace": "workspace", "workspace": "workspace",
@@ -314,6 +315,7 @@ class TesseractApp(App):
         # unbound until a workspace is picked (see _handle_workspace_input /
         # _handle_workspace_edit_input) - every append() persists once bound
         self._last_agent_reply: str = ""  # backs the 'copy'/-c command
+        self._last_full_input: str | None = None  # backs the 'expand'/-e command
 
         self.stage: str = "workspace"
         self._pack_return_stage: str = "chat"
@@ -327,7 +329,6 @@ class TesseractApp(App):
         self._turn_counter: int = 0  # backs each chat turn's unique echo-widget id
 
         self._print_banner()
-        self.write_log("[dim]Working on:[/dim] " + str(Path.cwd()))
         self.write_log("")
         if self._pending_config_error is not None:
             exc_name, exc_msg = self._pending_config_error
@@ -342,7 +343,10 @@ class TesseractApp(App):
                 )
             )
             self.write_log("")
-        self.write_log("[bold]Workspace folder:[/bold] (press Enter to accept, or type a path)")
+        # self.write_log(
+        #     f"[bold]Workspace:[/bold] [dim]{Path.cwd()}[/dim] "
+        #     "(press Enter to accept, or type a different path)"
+        # )
         self.query_one("#main-input", ChatTextArea).value = str(Path.cwd())
         self.query_one("#main-input", ChatTextArea).focus()
         self._refresh_mode_line()
@@ -394,6 +398,40 @@ class TesseractApp(App):
         container.scroll_end(animate=False)
         return widget
 
+    def _echo_text(self, text: str, *, limit_lines: int = 8, limit_chars: int = 600) -> str:
+        """Formats raw user-typed text for the "you typed this" echo
+        lines. Long pastes/messages (many lines, or just a huge single
+        line) get cut short with a `(...) type 'expand' to see the
+        full text` note instead of flooding the scrollback - the full
+        original is stashed in `_last_full_input` so 'expand'/-e can
+        still show it on demand. Short input passes through unchanged."""
+        lines = text.splitlines() or [text]
+        shown = text
+        truncated = False
+        if len(lines) > limit_lines:
+            shown = "\n".join(lines[:limit_lines])
+            truncated = True
+        if len(shown) > limit_chars:
+            shown = shown[:limit_chars]
+            truncated = True
+        if not truncated:
+            return text
+        self._last_full_input = text
+        hidden_chars = len(text) - len(shown)
+        hidden_lines = max(0, len(lines) - limit_lines)
+        extra = f", {hidden_lines} more line(s)" if hidden_lines else ""
+        return (
+            f"{shown}\n"
+            f"[dim]… truncated ({hidden_chars} more char(s){extra}) - "
+            "type 'expand' to see the full text.[/dim]"
+        )
+
+    def _expand_last_input(self) -> None:
+        if self._last_full_input is None:
+            self.write_log("[dim]Nothing truncated to expand - the last input was shown in full.[/dim]")
+            return
+        self.write_log(render_box("Full input", self._last_full_input, style="#7c8bff"))
+
     def set_status(self, text: str) -> None:
         self.query_one("#status-line", Static).update(text)
 
@@ -410,7 +448,7 @@ class TesseractApp(App):
         ws_display = _truncate_path_display(self.workspace_root)
         pack = self.selected_pack or "(not set)"
         self.query_one("#mode-line", Static).update(
-            f"[dim]ws:[/dim] {ws_display} •  [dim][bold]{pack}[/bold][/dim]  •  [dim] {self.stage}[/dim]"
+            f"[dim]ws:[/dim] [#236f9b]{ws_display}[/#236f9b] •  [dim][bold][#4ad851]{pack}[/#4ad851][/bold][/dim]  •  [dim][yellow] {self.stage}[/yellow][/dim]"
         )
 
     def _write_nav_divider(self, label: str) -> None:
@@ -418,7 +456,6 @@ class TesseractApp(App):
 
     def _print_banner(self) -> None:
         self.write_log(build_banner_panel(self.size.width))
-        self.write_log(build_tagline())
 
     # ------------------------------------------------------------------
     # input routing - the whole replacement for the old push_screen chain
@@ -490,30 +527,34 @@ class TesseractApp(App):
             head_probe = words_probe[0].lower() if words_probe else ""
 
             if head_probe in RESET_HEADS and len(words_probe) <= 2:
-                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                 self._start_reset_confirm(words_probe[1].lower() if len(words_probe) == 2 else None)
                 return
 
             if head_probe in RELOAD_HEADS and len(words_probe) <= 2:
-                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                 self._reload_config(words_probe[1].lower() if len(words_probe) == 2 else None)
                 return
 
             global_cmd = GLOBAL_ALIASES.get(stripped.lower())
             if global_cmd == "help":
-                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                 self.write_log("")
                 self.write_log(render_help(self))
                 return
             if global_cmd == "copy":
-                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                 self._copy_last_reply()
+                return
+            if global_cmd == "expand":
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
+                self._expand_last_input()
                 return
             if global_cmd == "clear":
                 self._clear_scrollback()
                 return
             if global_cmd == "packs":
-                self.write_log(f"[dim]›[/dim] {text}")
+                self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                 self.write_log(settings_commands.render_packs_overview(self.config_manager))
                 return
             if global_cmd and self.stage in {"chat", "settings", "home"}:
@@ -539,7 +580,7 @@ class TesseractApp(App):
                 # verbatim, printed right where you are, with
                 # self.stage untouched throughout.
                 if first in ("-cfg", "--config") and len(words) >= 2:
-                    self.write_log(f"[dim]›[/dim] {text}")
+                    self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                     rest = words[1:]
                     head = rest[0].lower()
                     if head == "model":
@@ -569,7 +610,7 @@ class TesseractApp(App):
 
                 translated = _translate_compound_shorthand(words)
                 if translated is not None:
-                    self.write_log(f"[dim]›[/dim] {text}")
+                    self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
                     self._dispatch_settings_cmd(translated)
                     return
 
@@ -598,13 +639,13 @@ class TesseractApp(App):
             return
 
         if self.stage == "wiz_model_custom":
-            self.write_log(f"[dim]›[/dim] {text}")
+            self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
             self._wiz["model"] = stripped
             self._wiz_show_pack_step()
             return
 
         if self.stage == "wiz_pack_new":
-            self.write_log(f"[dim]›[/dim] {text}")
+            self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
             self._wiz["pack"] = stripped
             self._wiz["pack_is_new"] = True
             self._wiz_show_target_step()
@@ -616,7 +657,7 @@ class TesseractApp(App):
             return
 
         if self.stage == "settings":
-            self.write_log(f"[dim]›[/dim] {text}")
+            self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
             words = stripped.split()
             translated = _translate_compound_shorthand(words)
             if translated is not None:
@@ -638,14 +679,14 @@ class TesseractApp(App):
             return
 
         if self.stage == "home":
-            self.write_log(f"[dim]›[/dim] {text}")
+            self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
             self.write_log("[dim]type 'chat' to start chatting, or 'settings' for configuration[/dim]")
             return
 
         # stage == "chat": a real message for the agent
         self._turn_counter += 1
         echo_id = f"turn-echo-{self._turn_counter}"
-        self.write_log(f"[bold cyan]›[/bold cyan] {text}", id=echo_id)
+        self.write_log(f"[bold cyan]›[/bold cyan] {self._echo_text(text)}", id=echo_id)
         self.run_agent_turn(text, echo_id)
 
     def _navigate(self, command: str) -> None:
@@ -679,7 +720,7 @@ class TesseractApp(App):
 
     def _handle_workspace_input(self, text: str) -> None:
         path = Path(text).expanduser().resolve()
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
 
         if not path.exists() or not path.is_dir():
             self.write_log(f"[red]not a valid directory: {path}[/red]")
@@ -688,7 +729,7 @@ class TesseractApp(App):
         self.workspace_root = path
         init_workspace_logging(path)
         self.messages.bind_store(ConversationStore(path))
-        self.write_log(f"[green]✓[/green] workspace set: {path}")
+        self.write_log(f"[green]✓[/green] workspace set: [#236f9b]{path}[/#236f9b]")
         self._pack_return_stage = "chat"
         self._refresh_mode_line()
         self.show_model_picker()
@@ -700,7 +741,7 @@ class TesseractApp(App):
         returning to wherever `workspace` was invoked from instead of
         always cascading into the model picker (that cascade only makes
         sense for the very first setup, not a later edit)."""
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
 
         if text.strip().lower() == "cancel":
             self.write_log("[dim]— workspace unchanged —[/dim]")
@@ -801,7 +842,7 @@ class TesseractApp(App):
         self.stage = "awaiting_remove_pack_confirm"
 
     def _handle_remove_pack_confirm_input(self, text: str) -> None:
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
         name = self._pending_remove_pack
         if text.strip().lower() in ("y", "yes"):
             try:
@@ -861,7 +902,7 @@ class TesseractApp(App):
         self.stage = "awaiting_reset_confirm"
 
     def _handle_reset_confirm_input(self, text: str) -> None:
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
         if text.strip().lower() in ("y", "yes"):
             # Only "temp" (LLM context) exists today - this dispatch
             # stays a dict-shaped switch so a future scope (e.g.
@@ -941,7 +982,7 @@ class TesseractApp(App):
         name = args[0]
         if name in self.config_manager.config.providers:
             self.selected_pack = name
-            self.write_log(f"[green]✓[/green] active pack: {name}")
+            self.write_log(f"[green]✓[/green] active pack: [#4ad851]{name}[/#4ad851]")
             self._refresh_mode_line()
         else:
             self.write_log(f"[red]no such pack: '{name}'.[/red] Try [bold]-p[/bold] to list packs.")
@@ -1005,7 +1046,7 @@ class TesseractApp(App):
             name = words[2]
             if name in providers:
                 self.selected_pack = name
-                self.write_log(f"[green]✓[/green] active pack: {name}")
+                self.write_log(f"[green]✓[/green] active pack:[#4ad851]{name}[/#4ad851]")
                 self._refresh_mode_line()
             return
 
@@ -1090,9 +1131,10 @@ class TesseractApp(App):
 
             self._restore_input()
             self.selected_pack = chosen_id
-            self.write_log(f"[green]✓[/green] active pack: {chosen_id}")
+            self.write_log(f"[green]✓[/green] active pack: [#4ad851]{chosen_id}[/#4ad851]")
             self.stage = self._pack_return_stage
             self._refresh_mode_line()
+            self.write_log("\n[#7F849C]────────────────Chat───────────────────[/#7F849C]\n")
             return
 
         if self.stage == "wiz_provider" and event.option_list.id == "wiz-options":
@@ -1227,6 +1269,8 @@ class TesseractApp(App):
             self._pending_activate_pack = pack
             self._activate_return_stage = return_stage
             self.stage = "awaiting_activate_confirm"
+            self._restore_input()
+            self._refresh_mode_line()
             return
 
         self.stage = return_stage
@@ -1234,11 +1278,11 @@ class TesseractApp(App):
         self._refresh_mode_line()
 
     def _handle_activate_confirm_input(self, text: str) -> None:
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
         pack = self._pending_activate_pack
         if text.strip().lower() in ("y", "yes"):
             self.selected_pack = pack
-            self.write_log(f"[green]✓[/green] active pack: {pack}")
+            self.write_log(f"[green]✓[/green] active pack: [#4ad851]{pack}[/#4ad851]")
         else:
             self.write_log("[dim]Kept the current active pack.[/dim]")
         self.stage = self._activate_return_stage
@@ -1287,7 +1331,7 @@ class TesseractApp(App):
         self.set_status("")
         self._last_agent_reply = reply
         self._remove_echo(echo_id)
-        body = f"[bold cyan]›[/bold cyan] {user_text}\n\n{reply}"
+        body = f"[bold cyan]›[/bold cyan] {self._echo_text(user_text)}\n\n{reply}"
         self.write_log(render_box("Agent", body, style="#b98cff"))
 
     # ------------------------------------------------------------------
@@ -1317,7 +1361,7 @@ class TesseractApp(App):
 
     def _handle_approval_input(self, text: str) -> None:
         approved = text.strip().lower() in {"y", "yes"}
-        self.write_log(f"[dim]›[/dim] {text}")
+        self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
         self._approval_result = approved
         if self._approval_event is not None:
             self._approval_event.set()
