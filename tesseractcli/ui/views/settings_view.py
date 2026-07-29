@@ -58,7 +58,7 @@ _SECTION_COLORS: dict[str, tuple[str, str]] = {
 # title (item 6) - deliberately not one of the per-section hues above,
 # so the divider itself reads as neutral scaffolding and the colored
 # title still stands out as the actual section identity.
-_DIVIDER_COLOR = "#6c7086"
+_DIVIDER_COLOR = "#236f9b"
 _BORDER_COLOR = "#7F849C"
 
 def _section(title: str, key: str, content: str) -> str:
@@ -99,7 +99,7 @@ def render_settings(app: "TesseractApp") -> Any:
 
     overview = (
         f"App              {settings.APP_NAME} v{settings.APP_VERSION} ({settings.ENV_MODE.value})\n"
-        f"Config file      {manager.config_path}\n"
+        f"Config Dir       {manager.config_path.parent}\n"
         f"Workspace        {workspace}\n"
         f"Active pack      {pack}\n"
     )

@@ -74,7 +74,7 @@ class ChatTextArea(TextArea):
             event.prevent_default()
             self.post_message(self.Submitted(self, self.text))
             return
-        if event.key == "ctrl+j":
+        if event.key == "shift+enter":
             event.stop()
             event.prevent_default()
             self.insert("\n")

@@ -15,6 +15,7 @@ underneath it, rather than clearing to a different screen.
 from __future__ import annotations
 
 from rich.align import Align
+from rich.console import Group
 from rich.panel import Panel
 
 from tesseractcli.ui.logo import FALLBACK_TITLE, GRADIENT_LOGO, LOGO_MIN_WIDTH, TAGLINE
@@ -27,10 +28,16 @@ def build_banner_panel(width: int) -> Panel:
     art. `RichLog.write()` accepts Rich renderables directly, so the
     caller writes this straight into the log.
 
+    The tagline/version line now lives INSIDE this panel (stacked under
+    the logo via `Group`, both centered) rather than being written as a
+    second, unboxed line right after it - previously the caller wrote
+    the panel and then a bare `TAGLINE` string separately, which read as
+    two disconnected elements instead of one cohesive banner.
+
     `expand=True` makes the panel's border span the full terminal
     width (matching `#scrollback`'s `width: 1fr` in the app CSS)
-    instead of shrinking to the logo's own fixed width, with the logo
-    itself centered inside via `Align.center` - this is what makes the
+    instead of shrinking to the logo's own fixed width, with the
+    content centered inside via `Align.center` - this is what makes the
     banner sit "in the middle of the screen / full width" rather than
     left-hugging a narrow box. Note this is a one-shot render at
     startup (RichLog only appends, it can't redraw a past line), so
@@ -40,13 +47,13 @@ def build_banner_panel(width: int) -> Panel:
     so reflows normally.
     """
     logo = GRADIENT_LOGO if width >= LOGO_MIN_WIDTH else FALLBACK_TITLE
-    return Panel(
+    content = Group(
         Align.center(logo),
+        Align.center(TAGLINE),
+    )
+    return Panel(
+        content,
         border_style="#4dd8ff",
         padding=(1, 2),
         expand=True,
     )
-
-
-def build_tagline() -> str:
-    return TAGLINE

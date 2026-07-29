@@ -96,7 +96,8 @@ class WelcomeScreen(Screen):
         )
 
     def _status_text(self, ready: bool) -> str:
-        line1 = f"[dim]Working on:[/dim] {self._workspace_path}"
+        line1 = f"888888888="
+        # line1 = f"[dim]Working on:[/dim] {self._workspace_path}"
         line2 = (
             "[green]✓ System ready[/green]"
             if ready
