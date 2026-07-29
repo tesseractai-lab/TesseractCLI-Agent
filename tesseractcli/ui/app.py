@@ -43,6 +43,7 @@ from tesseractcli.config.global_config.manager import ConfigManager
 from tesseractcli.config.provider_catalog import PROVIDER_CATALOG
 from tesseractcli.llm.dispatcher import LLMDispatcher
 from tesseractcli.llm.routing import RoutingResolver
+from tesseractcli.logging.workspace import init_workspace_logging
 from tesseractcli.memory.store import ConversationStore, PersistentMessageList
 from tesseractcli.models.exceptions import ConfigError
 from tesseractcli.tools.registry_builder import build_registry
@@ -685,6 +686,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        init_workspace_logging(path)
         self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self._pack_return_stage = "chat"
@@ -712,6 +714,7 @@ class TesseractApp(App):
             return
 
         self.workspace_root = path
+        init_workspace_logging(path)
         self.messages.bind_store(ConversationStore(path))
         self.write_log(f"[green]✓[/green] workspace set: {path}")
         self.stage = getattr(self, "_workspace_return_stage", "chat")

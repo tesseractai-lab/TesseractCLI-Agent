@@ -353,7 +353,7 @@ class ConfigManager:
 
         Args:
             path: Dot-separated path to an *existing* key, e.g.
-                ``"paths.logs_dir"`` or ``"providers.main.temperature"``.
+                ``"paths.data_dir"`` or ``"providers.main.temperature"``.
             value: New value to assign at ``path``.
 
         Raises:
