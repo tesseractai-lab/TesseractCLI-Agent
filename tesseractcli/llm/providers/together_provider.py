@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_together import ChatTogether
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -26,7 +27,7 @@ class TogetherProvider(BaseLLMProvider):
 
         return ChatTogether(
             model=model_name,
-            api_key=self.config.TOGETHER_API_KEY,
+            api_key=SecretStr(self.config.TOGETHER_API_KEY),
             rate_limiter=rate_limiter,
             **kwargs,
         )

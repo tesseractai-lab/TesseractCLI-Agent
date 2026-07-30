@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -34,7 +35,7 @@ class GitHubModelsProvider(BaseLLMProvider):
 
         return ChatOpenAI(
             model=model_name,
-            api_key=self.config.GITHUB_MODELS_TOKEN,
+            api_key=SecretStr(self.config.GITHUB_MODELS_TOKEN),
             base_url=GITHUB_MODELS_BASE_URL,
             rate_limiter=rate_limiter,
             **kwargs,

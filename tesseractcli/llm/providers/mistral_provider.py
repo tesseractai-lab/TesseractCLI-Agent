@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -31,7 +32,7 @@ class MistralProvider(BaseLLMProvider):
 
         return ChatOpenAI(
             model=model_name,
-            api_key=self.config.MISTRAL_API_KEY,
+            api_key=SecretStr(self.config.MISTRAL_API_KEY),
             base_url=MISTRAL_BASE_URL,
             rate_limiter=rate_limiter,
             **kwargs,

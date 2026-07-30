@@ -7,6 +7,7 @@ from __future__ import annotations
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
 
@@ -25,8 +26,8 @@ class AnthropicProvider(BaseLLMProvider):
             )
 
         return ChatAnthropic(
-            model=model_name,
-            api_key=self.config.ANTHROPIC_API_KEY,
+            model_name=model_name,
+            api_key=SecretStr(self.config.ANTHROPIC_API_KEY),
             rate_limiter=rate_limiter,
             **kwargs,
         )
