@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Awaitable, Callable, TypeAlias, cast
+from typing import Awaitable, Callable, TypeAlias
 
 from langchain_core.messages import (
     AIMessage,
