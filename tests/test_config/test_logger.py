@@ -17,7 +17,7 @@ def test_dev_log_file_is_plain_text(configured_env, workspace_root):
 
     logger_module.logger.info("test dev message")
 
-    log_files = list((workspace_root / "logs").glob("tesseract_dev_*.log"))
+    log_files = list((workspace_root / "logs" / "_bootstrap").glob("tesseract_dev_*.log"))
     assert len(log_files) == 1
 
     content = log_files[0].read_text(encoding="utf-8")
@@ -30,7 +30,7 @@ def test_prod_log_file_is_json(configured_env, workspace_root):
 
     logger_module.logger.info("test prod message")
 
-    log_files = list((workspace_root / "logs").glob("tesseract_prod_*.log"))
+    log_files = list((workspace_root / "logs" / "_bootstrap").glob("tesseract_prod_*.log"))
     assert len(log_files) == 1
 
     first_line = log_files[0].read_text(encoding="utf-8").strip().splitlines()[0]
@@ -55,6 +55,6 @@ def test_prod_traceback_does_not_leak_local_variables(configured_env, workspace_
     except ValueError:
         logger_module.logger.exception("caught an error")
 
-    log_files = list((workspace_root / "logs").glob("tesseract_prod_*.log"))
+    log_files = list((workspace_root / "logs" / "_bootstrap").glob("tesseract_prod_*.log"))
     content = log_files[0].read_text(encoding="utf-8")
     assert "sk-super-secret-token-123" not in content

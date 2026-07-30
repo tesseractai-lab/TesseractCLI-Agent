@@ -132,7 +132,10 @@ def test_symlink_to_env_blocked_even_with_innocent_name(workspace):
     real_env.write_text("SECRET=123")
 
     fake_notes = workspace / "notes.txt"
-    fake_notes.symlink_to(real_env)
+    try:
+        fake_notes.symlink_to(real_env)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation is not permitted on this platform.")
 
     result = check(fake_notes, "read", workspace)
     assert result.allowed is False
@@ -144,7 +147,10 @@ def test_symlink_to_safe_file_allowed(workspace):
     real_file.write_text("nothing sensitive")
 
     link = workspace / "shortcut.txt"
-    link.symlink_to(real_file)
+    try:
+        link.symlink_to(real_file)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation is not permitted on this platform.")
 
     result = check(link, "read", workspace)
     assert result.allowed is True

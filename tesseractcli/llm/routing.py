@@ -25,9 +25,9 @@ from tesseractcli.models.config_models.provider_models import ModelConfig, Model
 from tesseractcli.config.global_config.manager import ConfigManager
 
 # Used when the requested pack doesn't exist (e.g. an unconfigured
-# task name, or a typo) - "main" is guaranteed to exist because it
-# ships in default_config.yaml.
-DEFAULT_PACK_NAME = "main"
+# task name, or a typo) - "fast_main" is guaranteed to exist because
+# it ships in default_config.yaml.
+DEFAULT_PACK_NAME = "fast_main"
 
 
 class RoutingResolver:
@@ -56,8 +56,8 @@ class RoutingResolver:
     def resolve(self, pack_name: str | None) -> ModelPack:
         """Return the ModelPack for `pack_name`.
 
-        Falls back to the default pack ("main") when `pack_name` is
-        None or refers to a pack that doesn't exist in the config.
+        Falls back to the default pack ("fast_main") when `pack_name`
+        is None or refers to a pack that doesn't exist in the config.
         """
         name = pack_name or self._default_pack
         try:

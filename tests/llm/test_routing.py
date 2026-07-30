@@ -8,7 +8,8 @@ from tesseractcli.llm.routing import DEFAULT_PACK_NAME, RoutingResolver
 @pytest.fixture
 def manager(tmp_path):
     """A real ConfigManager backed by a throwaway directory, seeded from
-    the packaged default_config.yaml (packs: main, secondary)."""
+    the packaged default_config.yaml (packs: fast_main, large_main,
+    coding, small_coding, reasoning, small_reasoning, free)."""
     m = ConfigManager(config_dir=tmp_path)
     m.load()
     return m
@@ -20,16 +21,16 @@ class TestRoutingResolverResolve:
 
         pack = resolver.resolve(None)
 
-        assert pack.pool[0].provider == "anthropic"
-        assert pack.pool[0].model == "claude-sonnet-4-6"
+        assert pack.pool[0].provider == "mistral"
+        assert pack.pool[0].model == "mistral-small-2506"
 
     def test_resolve_returns_named_pack_when_present(self, manager):
         resolver = RoutingResolver(manager)
 
-        pack = resolver.resolve("secondary")
+        pack = resolver.resolve("large_main")
 
-        assert pack.pool[0].provider == "openai"
-        assert pack.pool[0].model == "gpt-4o-mini"
+        assert pack.pool[0].provider == "mistral"
+        assert pack.pool[0].model == "mistral-large-2512"
 
     def test_resolve_falls_back_to_main_for_unknown_pack(self, manager):
         resolver = RoutingResolver(manager)
@@ -40,12 +41,12 @@ class TestRoutingResolverResolve:
         assert fallback_pack == main_pack
 
     def test_resolve_respects_custom_default_pack(self, manager):
-        resolver = RoutingResolver(manager, default_pack="secondary")
+        resolver = RoutingResolver(manager, default_pack="large_main")
 
         pack = resolver.resolve("some_pack_nobody_configured")
 
-        assert pack.pool[0].provider == "openai"
-        assert pack.pool[0].model == "gpt-4o-mini"
+        assert pack.pool[0].provider == "mistral"
+        assert pack.pool[0].model == "mistral-large-2512"
 
     def test_resolve_sees_packs_added_after_construction(self, manager):
         resolver = RoutingResolver(manager)
@@ -62,18 +63,18 @@ class TestRoutingResolverResolvePrimary:
     def test_resolve_primary_returns_first_pool_entry(self, manager):
         resolver = RoutingResolver(manager)
 
-        primary = resolver.resolve_primary("secondary")
+        primary = resolver.resolve_primary("large_main")
 
-        assert primary.provider == "openai"
-        assert primary.model == "gpt-4o-mini"
+        assert primary.provider == "mistral"
+        assert primary.model == "mistral-large-2512"
 
     def test_resolve_primary_falls_back_to_main_for_unknown_pack(self, manager):
         resolver = RoutingResolver(manager)
 
         primary = resolver.resolve_primary("some_pack_nobody_configured")
 
-        assert primary.provider == "anthropic"
-        assert primary.model == "claude-sonnet-4-6"
+        assert primary.provider == "mistral"
+        assert primary.model == "mistral-small-2506"
 
     def test_resolve_primary_raises_on_empty_pool(self, manager):
         manager.packs.add_pack("empty_pack")

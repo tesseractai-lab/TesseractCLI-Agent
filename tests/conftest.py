@@ -51,6 +51,12 @@ def configured_env(workspace_root, monkeypatch):
         import tesseractcli.config.logger as logger_module
 
         monkeypatch.setenv("TESSERACT_BASE_DIR", str(workspace_root))
+        # logger.py resolves its own root independently of BASE_DIR/LOG_DIR
+        # (see LOGS_ROOT / TESSERACT_LOGS_DIR in tesseractcli/config/logger.py) -
+        # without this, tests would write real log files into the actual
+        # project's app_config/logs/ directory instead of the isolated
+        # workspace_root.
+        monkeypatch.setenv("TESSERACT_LOGS_DIR", str(workspace_root / "logs"))
 
         # لازم نشيل الكاش القديم قبل الـ reload، وإلا get_settings() هترجع
         # instance قديمة اتبنت بقيم مختلفة من قبل

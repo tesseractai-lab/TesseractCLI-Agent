@@ -124,7 +124,9 @@ class TestRoutingResolution:
 class TestFallbackChain:
     async def test_primary_success_returns_content_directly(self, mocker):
         main_pack = _pack("groq", "llama3")
-        dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(main_pack), max_context_messages=50
+        )
 
         fake_provider = MagicMock()
         fake_provider.get_model_safe.return_value = _fake_chat_model(content="hi")
@@ -136,7 +138,9 @@ class TestFallbackChain:
 
     async def test_falls_back_when_primary_provider_unavailable(self, mocker):
         main_pack = _pack("groq", "llama3", fallback=[("cerebras", "llama3.1-8b")])
-        dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(main_pack), max_context_messages=50
+        )
 
         groq_provider = MagicMock()
         groq_provider.get_model_safe.return_value = None
@@ -160,7 +164,9 @@ class TestFallbackChain:
 
     async def test_falls_back_on_non_rate_limit_exception(self, mocker):
         main_pack = _pack("groq", "llama3", fallback=[("cerebras", "llama3.1-8b")])
-        dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(main_pack), max_context_messages=50
+        )
 
         groq_provider = MagicMock()
         groq_provider.get_model_safe.return_value = _fake_chat_model(
@@ -187,7 +193,9 @@ class TestFallbackChain:
 
     async def test_truncates_and_retries_same_step_on_rate_limit_error(self, mocker):
         main_pack = _pack("groq", "llama3")
-        dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(main_pack), max_context_messages=50
+        )
 
         model = MagicMock()
 
@@ -217,7 +225,9 @@ class TestFallbackChain:
 
     async def test_all_steps_exhausted_raises_runtime_error(self, mocker):
         main_pack = _pack("groq", "llama3", fallback=[("cerebras", "llama3.1-8b")])
-        dispatcher = LLMDispatcher(resolver=_FakeResolver(main_pack))
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(main_pack), max_context_messages=50
+        )
 
         groq_provider = MagicMock()
         groq_provider.get_model_safe.return_value = None
@@ -235,6 +245,26 @@ class TestFallbackChain:
 
         with pytest.raises(RuntimeError, match="exhausted"):
             await dispatcher.ainvoke_with_fallback([HumanMessage(content="hey")])
+
+
+class TestMaxContextMessages:
+    def test_explicit_override_is_used_without_touching_resolver(self):
+        dispatcher = LLMDispatcher(
+            resolver=_FakeResolver(_pack("groq", "llama3")),
+            max_context_messages=7,
+        )
+
+        assert dispatcher.max_context_messages == 7
+
+    def test_reads_live_from_resolver_manager_when_not_overridden(self):
+        resolver = MagicMock()
+        resolver.manager.config.agent.max_context_messages = 40
+        dispatcher = LLMDispatcher(resolver=resolver)
+
+        assert dispatcher.max_context_messages == 40
+
+        resolver.manager.config.agent.max_context_messages = 5
+        assert dispatcher.max_context_messages == 5
 
 
 class TestTruncateMessages:
