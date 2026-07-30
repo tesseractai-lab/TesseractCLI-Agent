@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Awaitable, Callable, TypeAlias
+from typing import Awaitable, Callable, TypeAlias, cast
 
 from langchain_core.messages import (
     AIMessage,
@@ -229,14 +229,28 @@ async def run_inner_loop(
 
     for _ in range(max_iterations):
         tool_defs = _build_tool_defs(registry, active_tools)
-        ai_message: AIMessage = await dispatcher.ainvoke_with_fallback(
+        ai_message = await dispatcher.ainvoke_with_fallback(
             messages, tools=tool_defs, pack_name=name_pack, pinned=pinned_model
         )
+        # Ensure we have an AIMessage
+        if not isinstance(ai_message, AIMessage):
+            ai_message = AIMessage(content=str(ai_message.content))
         ai_message = _normalize_for_cross_provider_replay(ai_message)
         messages.append(ai_message)
 
         if not ai_message.tool_calls:
-            return ai_message.content
+            # Convert content to string if it's a list
+            content = ai_message.content
+            if isinstance(content, list):
+                # Extract text from content blocks
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                return " ".join(text_parts)
+            return str(content)
 
         # tool_calls entry, and each needs its own ToolMessage matched
         # back by that call's own id.
