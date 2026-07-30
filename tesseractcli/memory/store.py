@@ -61,6 +61,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Mapping
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
@@ -167,7 +168,7 @@ def _model_meta_row(message: AIMessage) -> dict:
         else (meta.get("model_name") or meta.get("model"))
     )
 
-    usage = message.usage_metadata or {}
+    usage: Mapping[str, Any] = message.usage_metadata or {}
     return {
         "model_name": model_name,
         "pack_name": meta.get("tesseract_pack_name"),
@@ -176,7 +177,6 @@ def _model_meta_row(message: AIMessage) -> dict:
         "input_tokens": usage.get("input_tokens"),
         "output_tokens": usage.get("output_tokens"),
     }
-
 
 def _tool_row(message: ToolMessage) -> dict:
     """name/args/success come from `additional_kwargs`, set by
