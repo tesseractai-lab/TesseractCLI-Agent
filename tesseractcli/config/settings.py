@@ -30,7 +30,7 @@ class EnvFileMode(StrEnum):
 
 
 def _resolve_env_mode() -> EnvFileMode:
-    raw = _main_values.get("ENV_MODE", "dev").strip('"').lower()
+    raw = (_main_values.get("ENV_MODE") or "dev").strip('"').lower()
     return (
         EnvFileMode.PRODUCTION
         if raw in ("prod", "production")
@@ -99,4 +99,4 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # fields populated from .env at runtime
