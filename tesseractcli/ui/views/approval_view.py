@@ -50,7 +50,9 @@ def render_approval_preview(call: ToolCallInfo) -> str:
         content = args.get("content", "")
         lines = content.splitlines()
         preview_lines = "\n".join(lines[:12])
-        more = f"\n[dim]... +{len(lines) - 12} more lines[/dim]" if len(lines) > 12 else ""
+        more = (
+            f"\n[dim]... +{len(lines) - 12} more lines[/dim]" if len(lines) > 12 else ""
+        )
         body = f"[bold]write_file[/bold] → [cyan]{path}[/cyan]\n\n{preview_lines}{more}"
     elif name == "edit_file":
         path = args.get("path", "?")
@@ -63,7 +65,11 @@ def render_approval_preview(call: ToolCallInfo) -> str:
         )
     elif name == "run_command":
         command = args.get("command", [])
-        rendered = " ".join(str(part) for part in command) if isinstance(command, list) else str(command)
+        rendered = (
+            " ".join(str(part) for part in command)
+            if isinstance(command, list)
+            else str(command)
+        )
         body = f"[bold]run_command[/bold]\n\n[yellow]$ {rendered}[/yellow]"
     else:
         body = f"[bold]{name}[/bold]\n{args}"

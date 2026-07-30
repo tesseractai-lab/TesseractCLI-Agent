@@ -2,10 +2,12 @@
 tesseractcli/llm/providers/hf_provider.py
 Routed through ChatOpenAI + custom base_url, same pattern as Cerebras.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -30,7 +32,7 @@ class HuggingFaceProvider(BaseLLMProvider):
 
         return ChatOpenAI(
             model=model_name,
-            api_key=self.config.HUGGINGFACE_API_KEY,
+            api_key=SecretStr(self.config.HUGGINGFACE_API_KEY),
             base_url=HF_BASE_URL,
             rate_limiter=rate_limiter,
             **kwargs,

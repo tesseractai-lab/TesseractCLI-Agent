@@ -87,18 +87,32 @@ NAV_ALIASES = {"q": "exit"}
 # specifically because it's the convention everyone already knows -
 # nothing new to learn on top of a CLI tool.
 GLOBAL_ALIASES = {
-    "-h": "help", "--help": "help", "?": "help",
-    "-cfg": "settings", "--config": "settings",
+    "-h": "help",
+    "--help": "help",
+    "?": "help",
+    "-cfg": "settings",
+    "--config": "settings",
     "-cnf": "settings",  # soft-deprecated synonym of -cfg, kept for compatibility
-    "-q": "exit", "--quit": "exit",
+    "-q": "exit",
+    "--quit": "exit",
     "--chat": "chat",
     "--home": "home",
     "--model": "model",
-    "-c": "copy", "copy": "copy",
-    "-e": "expand", "--expand": "expand", "expand": "expand",
-    "-cls": "clear", "--clear": "clear", "clear": "clear", "cls": "clear",
-    "-p": "packs", "--packs": "packs", "packs": "packs",
-    "-ws": "workspace", "--workspace": "workspace", "workspace": "workspace",
+    "-c": "copy",
+    "copy": "copy",
+    "-e": "expand",
+    "--expand": "expand",
+    "expand": "expand",
+    "-cls": "clear",
+    "--clear": "clear",
+    "clear": "clear",
+    "cls": "clear",
+    "-p": "packs",
+    "--packs": "packs",
+    "packs": "packs",
+    "-ws": "workspace",
+    "--workspace": "workspace",
+    "workspace": "workspace",
 }
 
 # "reset"/"reload" take an optional second word ("reset temp",
@@ -144,17 +158,20 @@ def _translate_compound_shorthand(words: list[str]) -> str | None:
         return None
     return " ".join([head, kind, *words[2:]])
 
+
 # Stages where free text is being captured *verbatim on purpose* (a
 # tool-approval y/n, a hand-typed model id, a hand-typed new pack
 # name) - GLOBAL_ALIASES is deliberately not intercepted here, or
 # "help"/"-h" could never actually be typed as, say, a literal model
 # id. Same tradeoff already documented above for NAV_COMMANDS.
 _FREE_TEXT_STAGES = {
-    "awaiting_approval", "wiz_model_custom", "wiz_pack_new", "awaiting_reset_confirm",
-    "awaiting_remove_pack_confirm", "awaiting_activate_confirm",
+    "awaiting_approval",
+    "wiz_model_custom",
+    "wiz_pack_new",
+    "awaiting_reset_confirm",
+    "awaiting_remove_pack_confirm",
+    "awaiting_activate_confirm",
 }
-
-
 
 
 def _truncate_path_display(path: Path | None, *, max_parts: int = 2) -> str:
@@ -173,6 +190,7 @@ def _truncate_path_display(path: Path | None, *, max_parts: int = 2) -> str:
     tail = parts[-max_parts:] if len(parts) >= max_parts else parts
 
     return "~\\" + "\\".join(tail)
+
 
 class SelectableStatic(Static):
     """`Static`, but explicit about wanting Textual's built-in
@@ -225,6 +243,12 @@ class TesseractApp(App):
        doesn't need to change which widget it targets. */
     #mode-line { height: 1; width: 1fr; padding: 0; color: #7c8bff; }
     """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.workspace_root: Path | None = None
+        self._last_workspace: tuple[str, str] | None = None
+        self._pending_config_error: tuple[str, str] | None = None
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """`#main-input` starts at `height: 1` (see CSS) since almost
@@ -309,9 +333,11 @@ class TesseractApp(App):
         self.config_manager = ConfigManager()
         self.dispatcher = LLMDispatcher(RoutingResolver(self.config_manager))
         self._load_config_safely()
-        self.workspace_root: Path | None = None
+        self.workspace_root = None
         self.selected_pack: str | None = None
-        self.messages = PersistentMessageList()  # BaseMessage list, mutated in place by run_inner_loop
+        self.messages = (
+            PersistentMessageList()
+        )  # BaseMessage list, mutated in place by run_inner_loop
         # unbound until a workspace is picked (see _handle_workspace_input /
         # _handle_workspace_edit_input) - every append() persists once bound
         self._last_agent_reply: str = ""  # backs the 'copy'/-c command
@@ -325,7 +351,9 @@ class TesseractApp(App):
         self._pack_choices: list[PackChoice] = []
         self._approval_event: asyncio.Event | None = None
         self._approval_result: bool = False
-        self._wiz: dict[str, Any] = {}  # scratch state for the interactive 'suggest' wizard
+        self._wiz: dict[
+            str, Any
+        ] = {}  # scratch state for the interactive 'suggest' wizard
         self._turn_counter: int = 0  # backs each chat turn's unique echo-widget id
 
         self._print_banner()
@@ -398,7 +426,9 @@ class TesseractApp(App):
         container.scroll_end(animate=False)
         return widget
 
-    def _echo_text(self, text: str, *, limit_lines: int = 8, limit_chars: int = 600) -> str:
+    def _echo_text(
+        self, text: str, *, limit_lines: int = 8, limit_chars: int = 600
+    ) -> str:
         """Formats raw user-typed text for the "you typed this" echo
         lines. Long pastes/messages (many lines, or just a huge single
         line) get cut short with a `(...) type 'expand' to see the
@@ -428,7 +458,9 @@ class TesseractApp(App):
 
     def _expand_last_input(self) -> None:
         if self._last_full_input is None:
-            self.write_log("[dim]Nothing truncated to expand - the last input was shown in full.[/dim]")
+            self.write_log(
+                "[dim]Nothing truncated to expand - the last input was shown in full.[/dim]"
+            )
             return
         self.write_log(render_box("Full input", self._last_full_input, style="#7c8bff"))
 
@@ -452,7 +484,9 @@ class TesseractApp(App):
         )
 
     def _write_nav_divider(self, label: str) -> None:
-        self.write_log(f"\n[#6c7086]──────────────────── {label} ────────────────────[/#6c7086]\n")
+        self.write_log(
+            f"\n[#6c7086]──────────────────── {label} ────────────────────[/#6c7086]\n"
+        )
 
     def _print_banner(self) -> None:
         self.write_log(build_banner_panel(self.size.width))
@@ -475,8 +509,12 @@ class TesseractApp(App):
         except Exception as exc:  # noqa: BLE001 - intentional catch-all boundary
             self._report_error("Internal error", exc)
 
-    def _report_error(self, title: str, exc: Exception, *, user_text: str | None = None) -> None:
-        prefix = f"[bold cyan]›[/bold cyan] {user_text}\n\n" if user_text is not None else ""
+    def _report_error(
+        self, title: str, exc: Exception, *, user_text: str | None = None
+    ) -> None:
+        prefix = (
+            f"[bold cyan]›[/bold cyan] {user_text}\n\n" if user_text is not None else ""
+        )
         message = f"{prefix}[red]{type(exc).__name__}: {exc}[/red]"
 
         # verbose.errors (item 10): off by default - a config error, a
@@ -497,7 +535,9 @@ class TesseractApp(App):
             tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
             message += f"\n\n[dim]{tb.strip()}[/dim]"
         else:
-            message += "\n\n[dim]set verbose.errors true to see the full traceback.[/dim]"
+            message += (
+                "\n\n[dim]set verbose.errors true to see the full traceback.[/dim]"
+            )
 
         self.write_log(render_box(title, message, style="red"))
 
@@ -528,12 +568,16 @@ class TesseractApp(App):
 
             if head_probe in RESET_HEADS and len(words_probe) <= 2:
                 self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
-                self._start_reset_confirm(words_probe[1].lower() if len(words_probe) == 2 else None)
+                self._start_reset_confirm(
+                    words_probe[1].lower() if len(words_probe) == 2 else None
+                )
                 return
 
             if head_probe in RELOAD_HEADS and len(words_probe) <= 2:
                 self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
-                self._reload_config(words_probe[1].lower() if len(words_probe) == 2 else None)
+                self._reload_config(
+                    words_probe[1].lower() if len(words_probe) == 2 else None
+                )
                 return
 
             global_cmd = GLOBAL_ALIASES.get(stripped.lower())
@@ -555,7 +599,9 @@ class TesseractApp(App):
                 return
             if global_cmd == "packs":
                 self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
-                self.write_log(settings_commands.render_packs_overview(self.config_manager))
+                self.write_log(
+                    settings_commands.render_packs_overview(self.config_manager)
+                )
                 return
             if global_cmd and self.stage in {"chat", "settings", "home"}:
                 self._navigate(global_cmd)
@@ -590,7 +636,9 @@ class TesseractApp(App):
                         self._handle_inline_workspace_switch(rest[1:])
                         return
                     if head in RESET_HEADS and len(rest) <= 2:
-                        self._start_reset_confirm(rest[1].lower() if len(rest) == 2 else None)
+                        self._start_reset_confirm(
+                            rest[1].lower() if len(rest) == 2 else None
+                        )
                         return
                     if head in RELOAD_HEADS and len(rest) <= 2:
                         self._reload_config(rest[1].lower() if len(rest) == 2 else None)
@@ -680,7 +728,9 @@ class TesseractApp(App):
 
         if self.stage == "home":
             self.write_log(f"[dim]›[/dim] {self._echo_text(text)}")
-            self.write_log("[dim]type 'chat' to start chatting, or 'settings' for configuration[/dim]")
+            self.write_log(
+                "[dim]type 'chat' to start chatting, or 'settings' for configuration[/dim]"
+            )
             return
 
         # stage == "chat": a real message for the agent
@@ -709,7 +759,9 @@ class TesseractApp(App):
             self.stage = "workspace_edit"
             self._write_nav_divider("workspace")
             self.write_log(f"[bold]Current workspace:[/bold] {self.workspace_root}")
-            self.write_log("[bold]New workspace folder:[/bold] (type a path, or 'cancel')")
+            self.write_log(
+                "[bold]New workspace folder:[/bold] (type a path, or 'cancel')"
+            )
         elif command in ("exit", "quit"):
             self.exit()
         self._refresh_mode_line()
@@ -765,7 +817,9 @@ class TesseractApp(App):
     # model pack picker (replaces ModelPickerScreen)
     # ------------------------------------------------------------------
 
-    def _mount_options(self, options: list[Option], prompt: str, *, list_id: str) -> None:
+    def _mount_options(
+        self, options: list[Option], prompt: str, *, list_id: str
+    ) -> None:
         """Shared helper: mount an inline OptionList over the Input with
         a heading, used by both the pack picker and every step of the
         suggest wizard below."""
@@ -805,7 +859,11 @@ class TesseractApp(App):
         retyped-command flow inside `handle()` itself still works too,
         for anyone scripting commands directly."""
         parts = cmd_text.strip().split()
-        if len(parts) == 3 and parts[0].lower() == "remove" and parts[1].lower() == "pack":
+        if (
+            len(parts) == 3
+            and parts[0].lower() == "remove"
+            and parts[1].lower() == "pack"
+        ):
             self._start_remove_pack_confirm(parts[2])
             return
         self.write_log(settings_commands.handle(self.config_manager, cmd_text))
@@ -910,7 +968,9 @@ class TesseractApp(App):
             if self._pending_reset_scope == "temp":
                 n = len(self.messages)
                 self.messages.clear()
-                self.write_log(f"[green]Temp memory cleared[/green] ({n} message(s) dropped from context).")
+                self.write_log(
+                    f"[green]Temp memory cleared[/green] ({n} message(s) dropped from context)."
+                )
         else:
             self.write_log("[dim]Reset cancelled.[/dim]")
         self.stage = self._reset_return_stage
@@ -958,7 +1018,9 @@ class TesseractApp(App):
         `App.copy_to_clipboard`, which works even over SSH where
         drag-select copies the remote pane, not the local clipboard."""
         if not self._last_agent_reply:
-            self.write_log("[yellow]nothing to copy yet - no agent reply in this session.[/yellow]")
+            self.write_log(
+                "[yellow]nothing to copy yet - no agent reply in this session.[/yellow]"
+            )
             return
         try:
             self.copy_to_clipboard(self._last_agent_reply)
@@ -985,7 +1047,9 @@ class TesseractApp(App):
             self.write_log(f"[green]✓[/green] active pack: [#4ad851]{name}[/#4ad851]")
             self._refresh_mode_line()
         else:
-            self.write_log(f"[red]no such pack: '{name}'.[/red] Try [bold]-p[/bold] to list packs.")
+            self.write_log(
+                f"[red]no such pack: '{name}'.[/red] Try [bold]-p[/bold] to list packs."
+            )
 
     def _handle_inline_workspace_switch(self, args: list[str]) -> None:
         """Backs `-cfg -ws <path>`/`-cfg workspace <path>` typed straight
@@ -1000,7 +1064,9 @@ class TesseractApp(App):
             self.stage = "workspace_edit"
             self._write_nav_divider("workspace")
             self.write_log(f"[bold]Current workspace:[/bold] {self.workspace_root}")
-            self.write_log("[bold]New workspace folder:[/bold] (type a path, or 'cancel')")
+            self.write_log(
+                "[bold]New workspace folder:[/bold] (type a path, or 'cancel')"
+            )
             self._refresh_mode_line()
             return
         path = Path(" ".join(args)).expanduser().resolve()
@@ -1046,7 +1112,9 @@ class TesseractApp(App):
             name = words[2]
             if name in providers:
                 self.selected_pack = name
-                self.write_log(f"[green]✓[/green] active pack:[#4ad851]{name}[/#4ad851]")
+                self.write_log(
+                    f"[green]✓[/green] active pack:[#4ad851]{name}[/#4ad851]"
+                )
                 self._refresh_mode_line()
             return
 
@@ -1054,14 +1122,20 @@ class TesseractApp(App):
             name = words[2]
             if name not in providers and self.selected_pack == name:
                 self.selected_pack = None
-                self.write_log("[yellow]active pack was removed - pick a new one:[/yellow]")
+                self.write_log(
+                    "[yellow]active pack was removed - pick a new one:[/yellow]"
+                )
                 self._pack_return_stage = self.stage
                 self.show_model_picker()
             return
 
         if head == "rename" and len(words) >= 4:
             old_name, new_name = words[2], words[3]
-            if self.selected_pack == old_name and new_name in providers and old_name not in providers:
+            if (
+                self.selected_pack == old_name
+                and new_name in providers
+                and old_name not in providers
+            ):
                 self.selected_pack = new_name
                 self._refresh_mode_line()
             return
@@ -1080,12 +1154,16 @@ class TesseractApp(App):
         self._pack_choices = load_pack_choices(self.config_manager)
 
         self.stage = "model_pick"
-        options = [Option(choice.label, id=choice.name) for choice in self._pack_choices]
+        options = [
+            Option(choice.label, id=choice.name) for choice in self._pack_choices
+        ]
         options.append(Option("+ Add new pack", id="__add_pack__"))
         options.append(Option("Cancel", id="__cancel__"))
         self._mount_options(options, "Select a model pack", list_id="pack-options")
 
-    async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+    async def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
         try:
             await self._route_option_selected(event)
         except Exception as exc:  # noqa: BLE001 - same boundary as on_input_submitted
@@ -1126,15 +1204,21 @@ class TesseractApp(App):
                 # (`start_suggest_wizard`), same as every other wizard
                 # step, so the input stays hidden until a free-text step
                 # (custom model id / new pack name) actually needs it.
-                self.start_suggest_wizard(activate=True, return_stage=self._pack_return_stage)
+                self.start_suggest_wizard(
+                    activate=True, return_stage=self._pack_return_stage
+                )
                 return
 
             self._restore_input()
             self.selected_pack = chosen_id
-            self.write_log(f"[green]✓[/green] active pack: [#4ad851]{chosen_id}[/#4ad851]")
+            self.write_log(
+                f"[green]✓[/green] active pack: [#4ad851]{chosen_id}[/#4ad851]"
+            )
             self.stage = self._pack_return_stage
             self._refresh_mode_line()
-            self.write_log("\n[#7F849C]────────────────Chat───────────────────[/#7F849C]\n")
+            self.write_log(
+                "\n[#7F849C]────────────────Chat───────────────────[/#7F849C]\n"
+            )
             return
 
         if self.stage == "wiz_provider" and event.option_list.id == "wiz-options":
@@ -1184,7 +1268,9 @@ class TesseractApp(App):
     # `on_input_submitted` via the `wiz_model_custom`/`wiz_pack_new`
     # stages, since an OptionList can't take arbitrary text.
 
-    def start_suggest_wizard(self, *, activate: bool = False, return_stage: str = "settings") -> None:
+    def start_suggest_wizard(
+        self, *, activate: bool = False, return_stage: str = "settings"
+    ) -> None:
         """`activate`/`return_stage` let this be reused by the model
         picker's "+ Add new pack" option (see `_route_option_selected`):
         the settings-stage `suggest` command still gets the original
@@ -1197,7 +1283,10 @@ class TesseractApp(App):
         self.stage = "wiz_provider"
         self._refresh_mode_line()
         options = [
-            Option(f"{e.provider:<14} {e.label} — e.g. {', '.join(e.example_models)}", id=e.provider)
+            Option(
+                f"{e.provider:<14} {e.label} — e.g. {', '.join(e.example_models)}",
+                id=e.provider,
+            )
             for e in PROVIDER_CATALOG
         ]
         self._mount_options(options, "Pick a provider", list_id="wiz-options")
@@ -1208,7 +1297,9 @@ class TesseractApp(App):
         entry = next(e for e in PROVIDER_CATALOG if e.provider == self._wiz["provider"])
         options = [Option(model, id=model) for model in entry.example_models]
         options.append(Option("type a different model id…", id="__custom__"))
-        self._mount_options(options, f"Pick a model ({entry.label})", list_id="wiz-options")
+        self._mount_options(
+            options, f"Pick a model ({entry.label})", list_id="wiz-options"
+        )
 
     def _wiz_show_pack_step(self) -> None:
         self.stage = "wiz_pack"
@@ -1225,7 +1316,11 @@ class TesseractApp(App):
             Option("pool (primary)", id="pool"),
             Option("fallback", id="fallback"),
         ]
-        self._mount_options(options, f"Pool or fallback for '{self._wiz['pack']}'?", list_id="wiz-options")
+        self._mount_options(
+            options,
+            f"Pool or fallback for '{self._wiz['pack']}'?",
+            list_id="wiz-options",
+        )
 
     def _wiz_commit(self) -> None:
         provider = self._wiz["provider"]
@@ -1241,7 +1336,9 @@ class TesseractApp(App):
                 self.config_manager.packs.add_pack(pack)
             self.config_manager.packs.add_model(pack, provider, model, target=target)
             self.config_manager.save()
-            self.write_log(f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target}).")
+            self.write_log(
+                f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target})."
+            )
         except ConfigError as exc:
             self.write_log(f"[red]{exc}[/red]")
             self._wiz = {}
@@ -1314,6 +1411,7 @@ class TesseractApp(App):
         reads as one unit instead of two separate scrollback entries."""
         self.set_status("[dim]● thinking…[/dim]")
         try:
+            assert self.workspace_root is not None, "Workspace root must be set"
             reply = await run_inner_loop(
                 user_input=user_text,
                 messages=self.messages,
@@ -1338,16 +1436,22 @@ class TesseractApp(App):
     # tool approval (replaces ApprovalModal)
     # ------------------------------------------------------------------
 
-    async def approve_via_ui(self, tool_name: str, args: dict[str, Any], workspace_root: Path) -> bool:
+    async def approve_via_ui(
+        self, tool_name: str, args: dict[str, Any], workspace_root: Path
+    ) -> bool:
         """The `approve_fn` injected into `run_inner_loop`. Same role as
         the old modal-backed version: block (from the agent loop's point
         of view) on an `asyncio.Event` so the Textual event loop stays
         responsive - the difference is the preview and y/n prompt are
         written straight into the log/input instead of a popup screen."""
-        call = ToolCallInfo(tool_name=tool_name, args=args, workspace_root=workspace_root)
+        call = ToolCallInfo(
+            tool_name=tool_name, args=args, workspace_root=workspace_root
+        )
 
         self.write_log("")
-        self.write_log(render_box("Tool approval", render_approval_preview(call), style="yellow"))
+        self.write_log(
+            render_box("Tool approval", render_approval_preview(call), style="yellow")
+        )
 
         previous_stage = self.stage
         self.stage = "awaiting_approval"

@@ -58,7 +58,7 @@ def safe_open(
     full_path = resolve_in_workspace(workspace, user_path)
 
     is_read_mode = "r" in mode and "+" not in mode
-    action = "read" if is_read_mode else "write"
+    action: sensitive_files.Action = "read" if is_read_mode else "write"
 
     sf_result = sensitive_files.check(full_path, action, workspace)
     if not sf_result.allowed:

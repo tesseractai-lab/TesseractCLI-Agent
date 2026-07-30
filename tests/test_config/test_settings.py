@@ -32,7 +32,9 @@ def test_missing_required_field_raises(configured_env, workspace_root):
 
     # نمسح حقول required من المين .env وكمان من .env.dev عشان نتأكد
     # إن الفاليديشن شغالة فعلاً من كل المصادر مش بس من واحد فيهم
-    (workspace_root / ".env").write_text('APP_NAME="X"\n')  # ENV_MODE/APP_VERSION/... ناقصين
+    (workspace_root / ".env").write_text(
+        'APP_NAME="X"\n'
+    )  # ENV_MODE/APP_VERSION/... ناقصين
     (workspace_root / ".env.dev").write_text("")  # LOG_LEVEL كمان بقى ناقص
 
     config.get_settings.cache_clear()

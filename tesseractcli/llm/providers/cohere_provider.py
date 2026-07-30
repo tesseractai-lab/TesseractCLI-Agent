@@ -3,11 +3,13 @@ tesseractcli/llm/providers/cohere_provider.py
 Cohere has a free "trial" API key tier - separate rate limits from paid
 keys, but the same LangChain integration either way.
 """
+
 from __future__ import annotations
 
 from langchain_cohere import ChatCohere
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
 
@@ -29,7 +31,7 @@ class CohereProvider(BaseLLMProvider):
 
         return ChatCohere(
             model=model_name,
-            cohere_api_key=self.config.COHERE_API_KEY,
+            cohere_api_key=SecretStr(self.config.COHERE_API_KEY),
             rate_limiter=rate_limiter,
             **kwargs,
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class AgentConfig(BaseModel):
     """Behavioral settings for the application's agent runtime.
 

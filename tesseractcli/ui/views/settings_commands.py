@@ -31,7 +31,8 @@ is reachable, not just packs/models.
 from __future__ import annotations
 
 import shutil
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from tesseractcli.config.provider_catalog import suggestions_text
 from tesseractcli.models.exceptions import ConfigError
@@ -113,14 +114,12 @@ HELP_TEXT = (
     "  remove model <pack> <provider> <model> \\[fallback]\n"
     "                                       Remove a model from a pack\n"
     "  -a / -rm + -p | -md 'model'          Command shortcuts\n\n"
-
     "[bold #A6E3A1]Configuration[/bold #A6E3A1]\n"
     "  Command                              Description\n"
     "  ───────────────────────────────────  ──────────────────────────────\n"
     "  set <dot.path> <value>               Update a configuration value\n"
     "  get <dot.path>                       Read a configuration value\n"
     "  yaml                                 View global_config.yaml\n\n"
-
     "[bold #CBA6F7]Backups[/bold #CBA6F7]\n"
     "  Command                              Description\n"
     "  ───────────────────────────────────  ──────────────────────────────\n"
@@ -128,7 +127,6 @@ HELP_TEXT = (
     "  backups                              List available backups\n"
     "  restore <latest|file>                Restore a backup\n"
     "  validate                             Validate configuration\n\n"
-
     "[bold #F9E2AF]General[/bold #F9E2AF]\n"
     "  Command                              Description                     Alias\n"
     "  ───────────────────────────────────  ──────────────────────────────  ─────────────\n"
@@ -138,15 +136,14 @@ HELP_TEXT = (
     "  chat                                 Return to chat                  \n"
     "  help                                 Show this help                  -h, --help, ?\n"
     "  exit                                 Quit TesseractCLI               -q, --quit\n\n"
-
     "[dim]"
     "Notes\n"
     "─────\n"
-
     "• A backup is automatically created before any delete operation.\n"
     "• Restore any previous configuration from the Backups section."
     "[/dim]"
 )
+
 
 def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
     """Each pack gets its own header color (cycled from `_PACK_PALETTE`
@@ -156,19 +153,27 @@ def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
     glance instead of reading the label - the model lines under each
     are a lighter tint of that same family, same header/body pairing
     used in `settings_view.py`."""
-    lines = [f"[bold {color}]{name}[/bold {color}]  (max_tokens={pack.max_tokens}, temperature={pack.temperature})"]
+    lines = [
+        f"[bold {color}]{name}[/bold {color}]  (max_tokens={pack.max_tokens}, temperature={pack.temperature})"
+    ]
 
     pool_header, pool_body = _POOL_COLORS
     lines.append(f"  [bold {pool_header}]pool:[/bold {pool_header}]")
     if pack.pool:
-        lines.extend(f"    [{pool_body}]- {m.provider}/{m.model}[/{pool_body}]" for m in pack.pool)
+        lines.extend(
+            f"    [{pool_body}]- {m.provider}/{m.model}[/{pool_body}]"
+            for m in pack.pool
+        )
     else:
         lines.append("    [dim](empty)[/dim]")
 
     fb_header, fb_body = _FALLBACK_COLORS
     lines.append(f"  [bold {fb_header}]fallback:[/bold {fb_header}]")
     if pack.fallback:
-        lines.extend(f"    [{fb_body}]- {m.provider}/{m.model}[/{fb_body}]" for m in pack.fallback)
+        lines.extend(
+            f"    [{fb_body}]- {m.provider}/{m.model}[/{fb_body}]"
+            for m in pack.fallback
+        )
     else:
         lines.append("    [dim](empty)[/dim]")
     return "\n".join(lines)
@@ -183,7 +188,7 @@ def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
 # rather than shifting color depending on which pack it's in.
 _PACK_PALETTE = ["#b98cff"]
 # _PACK_PALETTE = ["#4dd8ff", "#b98cff", "#ff6b9d", "#6bcaff", "#e8a33d", "#4ddb9e"]
-_POOL_COLORS = ("#4ddb9e", "#a8f2d4")      # pool (primary): green / light green
+_POOL_COLORS = ("#4ddb9e", "#a8f2d4")  # pool (primary): green / light green
 _FALLBACK_COLORS = ("#e8a33d", "#f5cf94")  # fallback: amber / light amber
 
 
@@ -231,40 +236,47 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
             return render_packs_overview(manager)
 
         if cmd == "pack" and len(parts) >= 2:
-            name = parts[1]
-            pack = manager.packs.get_pack(name)
-            index = list(manager.config.providers.keys()).index(name) if name in manager.config.providers else 0
-            return render_box(f"Pack: {name}", _format_pack(name, pack, color=pack_color(index)))
+            pack_name = parts[1]
+            pack_obj = manager.packs.get_pack(pack_name)
+            index = (
+                list(manager.config.providers.keys()).index(pack_name)
+                if pack_name in manager.config.providers
+                else 0
+            )
+            return render_box(
+                f"Pack: {pack_name}",
+                _format_pack(pack_name, pack_obj, color=pack_color(index))
+            )
 
         if cmd == "suggest":
             return render_box("Provider / model suggestions", suggestions_text())
 
         if cmd == "add" and len(parts) >= 3 and parts[1].lower() == "pack":
-            name = parts[2]
-            manager.packs.add_pack(name)
+            pack_name = parts[2]
+            manager.packs.add_pack(pack_name)
             manager.save()
             return render_box(
                 "Pack added",
-                f"[green]✓[/green] created empty pack '{name}'.\n"
-                f"Next: [bold]add model {name} <provider> <model>[/bold] (see 'suggest' for ideas).",
+                f"[green]✓[/green] created empty pack '{pack_name}'.\n"
+                f"Next: [bold]add model {pack_name} <provider> <model>[/bold] (see 'suggest' for ideas).",
             )
 
         if cmd == "remove" and len(parts) >= 3 and parts[1].lower() == "pack":
-            name = parts[2]
+            pack_name = parts[2]
             confirmed = len(parts) >= 4 and parts[3].lower() == "confirm"
             if not confirmed:
                 return render_box(
                     "Confirm delete",
-                    f"This permanently deletes pack '{name}' and every model inside it.\n"
-                    f"To confirm, run: [bold]remove pack {name} confirm[/bold]",
+                    f"This permanently deletes pack '{pack_name}' and every model inside it.\n"
+                    f"To confirm, run: [bold]remove pack {pack_name} confirm[/bold]",
                     style="yellow",
                 )
             manager.backup()
-            manager.packs.remove_pack(name)
+            manager.packs.remove_pack(pack_name)
             manager.save()
             return render_box(
                 "Pack removed",
-                f"[green]✓[/green] removed pack '{name}'.\n"
+                f"[green]✓[/green] removed pack '{pack_name}'.\n"
                 "[dim]A backup was taken first - run 'restore' if this was a mistake.[/dim]",
             )
 
@@ -278,32 +290,44 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
             )
 
         if cmd == "add" and len(parts) >= 5 and parts[1].lower() == "model":
-            pack, provider, model = parts[2], parts[3], parts[4]
-            target = "fallback" if len(parts) >= 6 and parts[5].lower() == "fallback" else "pool"
-            manager.packs.add_model(pack, provider, model, target=target)
+            pack_name = parts[2]
+            provider = parts[3]
+            model = parts[4]
+            target: Literal['pool', 'fallback'] = cast(
+                Literal['pool', 'fallback'],
+                "fallback" if len(parts) >= 6 and parts[5].lower() == "fallback" else "pool"
+            )
+            manager.packs.add_model(pack_name, provider, model, target=target)
             manager.save()
-            # manager.
-            return render_box("Model added", f"[green]✓[/green] added {provider}/{model} to '{pack}' ({target}).")
+            return render_box(
+                "Model added",
+                f"[green]✓[/green] added {provider}/{model} to '{pack_name}' ({target}).",
+            )
 
         if cmd == "remove" and len(parts) >= 5 and parts[1].lower() == "model":
-            pack, provider, model = parts[2], parts[3], parts[4]
+            pack_name = parts[2]
+            provider = parts[3]
+            model = parts[4]
             confirmed = parts[-1].lower() == "confirm"
             tail = parts[5:-1] if confirmed else parts[5:]
-            target = "fallback" if tail and tail[0].lower() == "fallback" else "pool"
+            target = cast(
+                Literal['pool', 'fallback'],
+                "fallback" if tail and tail[0].lower() == "fallback" else "pool"
+            )
             if not confirmed:
                 suffix = " fallback" if target == "fallback" else ""
                 return render_box(
                     "Confirm delete",
-                    f"This removes {provider}/{model} from '{pack}' ({target}).\n"
-                    f"To confirm, run: [bold]remove model {pack} {provider} {model}{suffix} confirm[/bold]",
+                    f"This removes {provider}/{model} from '{pack_name}' ({target}).\n"
+                    f"To confirm, run: [bold]remove model {pack_name} {provider} {model}{suffix} confirm[/bold]",
                     style="yellow",
                 )
             manager.backup()
-            manager.packs.remove_model(pack, provider, model, target=target)
+            manager.packs.remove_model(pack_name, provider, model, target=target)
             manager.save()
             return render_box(
                 "Model removed",
-                f"[green]✓[/green] removed {provider}/{model} from '{pack}' ({target}).\n"
+                f"[green]✓[/green] removed {provider}/{model} from '{pack_name}' ({target}).\n"
                 "[dim]A backup was taken first - run 'restore' if this was a mistake.[/dim]",
             )
 
@@ -323,27 +347,31 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
             return _render_raw_yaml(manager)
 
         if cmd == "backup":
-            path = manager.backup()
-            return render_box("Backup created", f"[green]✓[/green] {path}")
+            backup_path = manager.backup()
+            return render_box("Backup created", f"[green]✓[/green] {backup_path}")
 
         if cmd == "backups":
             return render_box("Backups", _list_backups(manager))
 
         if cmd == "restore":
-            target = parts[1] if len(parts) >= 2 else "latest"
-            return _restore(manager, target)
+            restore_target = parts[1] if len(parts) >= 2 else "latest"
+            return _restore(manager, restore_target)
 
         if cmd == "validate":
             manager.validate()
-            return render_box("Valid", "[green]✓[/green] global_config.yaml matches the schema.")
+            return render_box(
+                "Valid", "[green]✓[/green] global_config.yaml matches the schema."
+            )
 
-        return render_box("Unknown command", f"[red]unrecognized: '{raw}'[/red]\n\n{HELP_TEXT}")
+        return render_box(
+            "Unknown command", f"[red]unrecognized: '{raw}'[/red]\n\n{HELP_TEXT}"
+        )
 
     except ConfigError as exc:
         return render_box("Error", f"[red]{exc}[/red]", style="red")
 
 
-def _backup_dir(manager: "ConfigManager") -> "Any":
+def _backup_dir(manager: "ConfigManager") -> Path:
     return manager.config_path.parent / "backups"
 
 
@@ -360,7 +388,11 @@ def _render_raw_yaml(manager: "ConfigManager") -> Any:
     try:
         content = manager.config_path.read_text(encoding="utf-8")
     except OSError as exc:
-        return render_box("global_config.yaml", f"[red]couldn't read {manager.config_path}: {exc}[/red]", style="red")
+        return render_box(
+            "global_config.yaml",
+            f"[red]couldn't read {manager.config_path}: {exc}[/red]",
+            style="red",
+        )
     body = f"[dim]{manager.config_path}[/dim]\n\n{escape(content).rstrip()}"
     return render_box("global_config.yaml (read-only - use 'set'/'get' to edit)", body)
 
@@ -371,10 +403,12 @@ def _list_backups(manager: "ConfigManager") -> str:
     listing method of its own - it only knows how to create one backup
     at a time - so this reads the directory directly the same way any
     other file-listing command would."""
-    backup_dir = _backup_dir(manager)
+    backup_dir: Path = _backup_dir(manager)
     if not backup_dir.exists():
         return "[dim](no backups yet - 'backup' creates one, and pack/model removal takes one automatically)[/dim]"
-    files = sorted(backup_dir.glob("*.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted(
+        backup_dir.glob("*.yaml"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not files:
         return "[dim](no backups yet)[/dim]"
     lines = [f"  {f.name}" for f in files]
@@ -388,7 +422,11 @@ def _restore(manager: "ConfigManager", target: str) -> Any:
     *current* (about-to-be-overwritten) file first, so restoring is
     itself undoable rather than a one-way door."""
     backup_dir = _backup_dir(manager)
-    files = sorted(backup_dir.glob("*.yaml"), key=lambda p: p.stat().st_mtime, reverse=True) if backup_dir.exists() else []
+    files = (
+        sorted(backup_dir.glob("*.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if backup_dir.exists()
+        else []
+    )
     if not files:
         return render_box("Restore", "[red]no backups found.[/red]")
 

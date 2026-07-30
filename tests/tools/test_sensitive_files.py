@@ -1,4 +1,3 @@
-
 """
 tests/test_tools/test_sensitive_files.py
 
@@ -12,7 +11,6 @@ Coverage for tools/sandbox/sensitive_files.py:
   - unknown / unmatched files are allowed
 """
 
-import os
 import pytest
 
 from tesseractcli.tools.sandbox.sensitive_files import check
@@ -26,6 +24,7 @@ def workspace(tmp_path):
 # ---------------------------------------------------------------------
 # Basic denylist matches — read
 # ---------------------------------------------------------------------
+
 
 def test_env_file_blocked_for_read(workspace):
     target = workspace / ".env"
@@ -71,6 +70,7 @@ def test_nested_secrets_dir_blocked_for_read(workspace):
 # Basic denylist matches — write
 # ---------------------------------------------------------------------
 
+
 def test_env_file_blocked_for_write(workspace):
     target = workspace / ".env"
     result = check(target, "write", workspace)
@@ -100,6 +100,7 @@ def test_git_config_blocked_for_write(workspace):
 # Allowlist overrides
 # ---------------------------------------------------------------------
 
+
 def test_env_example_allowed_despite_matching_env_star(workspace):
     target = workspace / ".env.example"
     target.write_text("KEY=your_key_here")
@@ -123,6 +124,7 @@ def test_env_template_allowed(workspace):
 # Symlink resolution — the important security case
 # ---------------------------------------------------------------------
 
+
 def test_symlink_to_env_blocked_even_with_innocent_name(workspace):
     """A file named notes.txt that's actually a symlink to .env must
     still be blocked — resolve() must run before pattern matching."""
@@ -130,7 +132,10 @@ def test_symlink_to_env_blocked_even_with_innocent_name(workspace):
     real_env.write_text("SECRET=123")
 
     fake_notes = workspace / "notes.txt"
-    fake_notes.symlink_to(real_env)
+    try:
+        fake_notes.symlink_to(real_env)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation is not permitted on this platform.")
 
     result = check(fake_notes, "read", workspace)
     assert result.allowed is False
@@ -142,7 +147,10 @@ def test_symlink_to_safe_file_allowed(workspace):
     real_file.write_text("nothing sensitive")
 
     link = workspace / "shortcut.txt"
-    link.symlink_to(real_file)
+    try:
+        link.symlink_to(real_file)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation is not permitted on this platform.")
 
     result = check(link, "read", workspace)
     assert result.allowed is True
@@ -151,6 +159,7 @@ def test_symlink_to_safe_file_allowed(workspace):
 # ---------------------------------------------------------------------
 # Unmatched files
 # ---------------------------------------------------------------------
+
 
 def test_normal_python_file_allowed(workspace):
     target = workspace / "main.py"
@@ -169,6 +178,7 @@ def test_normal_python_file_allowed_for_write(workspace):
 # ---------------------------------------------------------------------
 # Path outside workspace (fallback branch in _relative_and_name)
 # ---------------------------------------------------------------------
+
 
 def test_path_outside_workspace_falls_back_safely(workspace, tmp_path_factory):
     """path_guard should reject this before sensitive_files ever sees

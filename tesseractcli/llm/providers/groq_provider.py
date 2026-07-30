@@ -1,10 +1,12 @@
 """
 tesseractcli/llm/providers/groq_provider.py
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_groq import ChatGroq
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -27,7 +29,7 @@ class GroqProvider(BaseLLMProvider):
 
         return ChatGroq(
             model=model_name,
-            api_key=self.config.GROQ_API_KEY,
+            api_key=SecretStr(self.config.GROQ_API_KEY),
             rate_limiter=rate_limiter,
             **kwargs,
         )

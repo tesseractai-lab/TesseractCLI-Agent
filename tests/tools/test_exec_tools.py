@@ -14,7 +14,7 @@ from pathlib import Path
 from tesseractcli.tools.exec_tool import run_command
 from tesseractcli.config.settings import get_settings as config
 
-MAX_OUTPUT_CHARS=config().MAX_OUTPUT_CHARS
+MAX_OUTPUT_CHARS = config().MAX_OUTPUT_CHARS
 
 PY = sys.executable  # بدل "python3" الثابتة اللي مش موجودة على كل الأنظمة
 
@@ -53,7 +53,9 @@ def test_run_command_times_out(workspace_root: Path) -> None:
     assert result.metadata["timed_out"] is True
 
 
-def test_run_command_nonexistent_binary_returns_clear_error(workspace_root: Path) -> None:
+def test_run_command_nonexistent_binary_returns_clear_error(
+    workspace_root: Path,
+) -> None:
     result = run_command(workspace_root, command=["this_binary_does_not_exist_xyz"])
 
     assert result.success is False
@@ -67,7 +69,9 @@ def test_run_command_truncates_large_output(workspace_root: Path) -> None:
     result = run_command(workspace_root, command=[PY, "-c", code])
 
     assert result.metadata["stdout_truncated"] is True
-    assert len(result.output) <= MAX_OUTPUT_CHARS + len("\n... [truncated, 500 more characters]")
+    assert len(result.output) <= MAX_OUTPUT_CHARS + len(
+        "\n... [truncated, 500 more characters]"
+    )
 
 
 def test_run_command_executes_inside_workspace_root(workspace_root: Path) -> None:

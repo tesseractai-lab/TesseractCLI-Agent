@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 from tesseractcli.models import ToolResult
 from tesseractcli.observability import traced_tool_call
 
+
 @dataclass
 class ToolRegistry:
     # (schema, fn, needs_approval, core). `core=True` (the default) means
@@ -21,7 +22,9 @@ class ToolRegistry:
     # model calls the `search_tools` meta-tool (see agent/loop.py). This
     # is what keeps per-request tool context flat as more tools get
     # added: mark anything not used on nearly every turn as core=False.
-    _tools: dict[str, tuple[type[BaseModel], Callable, bool, bool]] = field(default_factory=dict)
+    _tools: dict[str, tuple[type[BaseModel], Callable, bool, bool]] = field(
+        default_factory=dict
+    )
 
     def add(
         self,
@@ -36,16 +39,20 @@ class ToolRegistry:
         self._tools[name] = (schema, fn, needs_approval, core)
 
     def schemas(self) -> list[type[BaseModel]]:
-        """ All the plans for that were tracked for the LLM Provider. """
+        """All the plans for that were tracked for the LLM Provider."""
         return [schema for schema, _, _, _ in self._tools.values()]
 
-    def tool_specs(self, names: set[str] | None = None) -> list[tuple[str, type[BaseModel]]]:
+    def tool_specs(
+        self, names: set[str] | None = None
+    ) -> list[tuple[str, type[BaseModel]]]:
         """Name + schema pairs, for building tool definitions that keep
         the LLM-facing tool name in sync with the registry key. Pass
         `names` to restrict to a subset (e.g. only the currently-active
         tools) instead of every registered tool."""
-        items = self._tools.items() if names is None else (
-            (name, self._tools[name]) for name in names if name in self._tools
+        items = (
+            self._tools.items()
+            if names is None
+            else ((name, self._tools[name]) for name in names if name in self._tools)
         )
         return [(name, schema) for name, (schema, _, _, _) in items]
 
@@ -63,7 +70,11 @@ class ToolRegistry:
         prompt and for `search_tools` results, neither of which need the
         full parameter schema, just enough for the model to know a tool
         exists and what it's for."""
-        keys = self._tools.keys() if names is None else [n for n in names if n in self._tools]
+        keys = (
+            self._tools.keys()
+            if names is None
+            else [n for n in names if n in self._tools]
+        )
         out: dict[str, str] = {}
         for name in keys:
             schema = self._tools[name][0]
@@ -82,16 +93,24 @@ class ToolRegistry:
     def dispatch(self, name: str, raw_args: dict, workspace_root: Path) -> ToolResult:
         """ "It is called when the LLM returns a tool_use request."""
         if name not in self._tools:
-            return ToolResult(tool_name=name, success=False, output="",
-                                error=f"Unknown tool '{name}'.")
+            return ToolResult(
+                tool_name=name,
+                success=False,
+                output="",
+                error=f"Unknown tool '{name}'.",
+            )
 
         schema, fn, _, _ = self._tools[name]
 
         try:
             validated = schema(**raw_args)
         except ValidationError as e:
-            return ToolResult(tool_name=name, success=False, output="",
-                                error=f"Invalid arguments for '{name}': {e}")
+            return ToolResult(
+                tool_name=name,
+                success=False,
+                output="",
+                error=f"Invalid arguments for '{name}': {e}",
+            )
 
         # Plain Python call, not a LangChain Runnable, so it is NOT
         # auto-traced the way model.ainvoke() calls are - traced_tool_call

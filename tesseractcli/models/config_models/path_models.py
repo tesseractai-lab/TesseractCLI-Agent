@@ -1,4 +1,4 @@
-""" tesseractcli/models/config_models/path_models.py"""
+"""tesseractcli/models/config_models/path_models.py"""
 
 from __future__ import annotations
 from pathlib import Path
@@ -18,6 +18,7 @@ class PathsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    data_dir: Path = Field(default=Path("data"), description="Application data directory.")
+    data_dir: Path = Field(
+        default=Path("data"), description="Application data directory."
+    )
     cache_dir: Path = Field(default=Path("cache"), description="Cache directory.")
-

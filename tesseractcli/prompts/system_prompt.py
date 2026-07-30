@@ -33,6 +33,7 @@ specifically so it bypasses `PersistentMessageList`'s save hook) - so
 editing this file, or changing which tools are core vs. deferred,
 takes effect on the very next turn with no migration needed.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -186,4 +187,6 @@ def build_system_prompt(
     identity = IDENTITY.format(
         repo_url=repo_url, org_url=org_url, author_url=author_url, license=license
     )
-    return f"{AGENCY}\n\n{rules}\n\n{identity}\n\nCurrent workspace root: {workspace_root}"
+    return (
+        f"{AGENCY}\n\n{rules}\n\n{identity}\n\nCurrent workspace root: {workspace_root}"
+    )

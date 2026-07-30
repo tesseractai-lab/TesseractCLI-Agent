@@ -8,6 +8,7 @@ from tesseractcli.models.config_models.path_models import PathsConfig
 from tesseractcli.models.config_models.agent_models import AgentConfig
 from tesseractcli.models.config_models.verbose_models import VerboseConfig
 
+
 class GlobalConfig(BaseModel):
     """Root model representing the full contents of ``global_config.yaml``.
 

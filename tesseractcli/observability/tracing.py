@@ -29,6 +29,7 @@ Three distinct things get traced, for three different reasons:
      fallback) and every tool call for that turn show up as ONE trace
      tree in LangSmith, instead of disconnected top-level runs.
 """
+
 from __future__ import annotations
 
 import os
@@ -43,6 +44,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 try:
     from langsmith import traceable as _ls_traceable
     from langsmith import trace as _ls_trace
+
     _LANGSMITH_INSTALLED = True
 except ImportError:  # langsmith is an optional dependency
     _LANGSMITH_INSTALLED = False
@@ -78,9 +80,7 @@ def configure_tracing() -> None:
     if settings.LANGSMITH_ENDPOINT:
         os.environ["LANGCHAIN_ENDPOINT"] = settings.LANGSMITH_ENDPOINT
 
-    logger.debug(
-        "LangSmith tracing enabled (project={})", settings.LANGSMITH_PROJECT
-    )
+    logger.debug("LangSmith tracing enabled (project={})", settings.LANGSMITH_PROJECT)
 
 
 def traceable(**kwargs: Any) -> Callable[[F], F]:
@@ -90,8 +90,10 @@ def traceable(**kwargs: Any) -> Callable[[F], F]:
     `agent/loop.py` never needs an `if tracing_enabled:` branch around
     its own definition."""
     if not _tracing_enabled():
+
         def _identity(fn: F) -> F:
             return fn
+
         return _identity
     return _ls_traceable(**kwargs)
 

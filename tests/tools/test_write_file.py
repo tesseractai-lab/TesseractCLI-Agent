@@ -14,10 +14,14 @@ def test_write_file_creates_new_file_with_content(workspace_root: Path) -> None:
     assert (workspace_root / "notes.txt").read_text() == "hello"
 
 
-def test_write_file_overwrite_mode_replaces_existing_content(workspace_root: Path) -> None:
+def test_write_file_overwrite_mode_replaces_existing_content(
+    workspace_root: Path,
+) -> None:
     (workspace_root / "notes.txt").write_text("old content")
 
-    result = write_file(workspace_root, path="notes.txt", content="new content", mode="overwrite")
+    result = write_file(
+        workspace_root, path="notes.txt", content="new content", mode="overwrite"
+    )
 
     assert result.success is True
     assert (workspace_root / "notes.txt").read_text() == "new content"
@@ -26,7 +30,9 @@ def test_write_file_overwrite_mode_replaces_existing_content(workspace_root: Pat
 def test_write_file_append_mode_adds_to_existing_content(workspace_root: Path) -> None:
     (workspace_root / "notes.txt").write_text("line1\n")
 
-    result = write_file(workspace_root, path="notes.txt", content="line2\n", mode="append")
+    result = write_file(
+        workspace_root, path="notes.txt", content="line2\n", mode="append"
+    )
 
     assert result.success is True
     assert (workspace_root / "notes.txt").read_text() == "line1\nline2\n"
@@ -40,7 +46,9 @@ def test_write_file_creates_parent_directories_if_missing(workspace_root: Path) 
 
 
 def test_write_file_invalid_mode_returns_failed_result(workspace_root: Path) -> None:
-    result = write_file(workspace_root, path="notes.txt", content="x", mode="invalid_mode")
+    result = write_file(
+        workspace_root, path="notes.txt", content="x", mode="invalid_mode"
+    )
 
     assert result.success is False
     assert result.error is not None

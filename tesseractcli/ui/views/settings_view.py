@@ -49,9 +49,9 @@ _PROVIDER_KEY_FIELDS = [
 # a section reads as one color family rather than two unrelated colors.
 _SECTION_COLORS: dict[str, tuple[str, str]] = {
     "overview": ("#89DCEB", "#CFEFF7"),  # Cyan
-    "keys":     ("#A6E3A1", "#D8F5D4"),  # Green
-    "packs":    ("#CBA6F7", "#E8D8FF"),  # Purple
-    "help":     ("#F9E2AF", "#FCECC8"),  # Amber
+    "keys": ("#A6E3A1", "#D8F5D4"),  # Green
+    "packs": ("#CBA6F7", "#E8D8FF"),  # Purple
+    "help": ("#F9E2AF", "#FCECC8"),  # Amber
 }
 
 # Grey used for the divider dashes on either side of each section's
@@ -60,6 +60,7 @@ _SECTION_COLORS: dict[str, tuple[str, str]] = {
 # title still stands out as the actual section identity.
 _DIVIDER_COLOR = "#236f9b"
 _BORDER_COLOR = "#7F849C"
+
 
 def _section(title: str, key: str, content: str) -> str:
     header_color, body_color = _SECTION_COLORS[key]
@@ -76,6 +77,7 @@ def _section(title: str, key: str, content: str) -> str:
 
     return f"{heading}\n[{body_color}]{content}[/{body_color}]"
 
+
 def render_settings(app: "TesseractApp") -> Any:
     settings = get_settings()
     manager = app.config_manager
@@ -90,12 +92,15 @@ def render_settings(app: "TesseractApp") -> Any:
     workspace = app.workspace_root or "(not set)"
     pack = app.selected_pack or "(not set)"
 
-    pack_summaries = "\n\n".join(
-        f" [bold] [{pack_color(i)}]{name}[/{pack_color(i)}][bold]:\
+    pack_summaries = (
+        "\n\n".join(
+            f" [bold] [{pack_color(i)}]{name}[/{pack_color(i)}][bold]:\
             \n    |- {len(p.pool)} pool \
             \n    |- {len(p.fallback)} fallback "
-        for i, (name, p) in enumerate(cfg.providers.items())
-    ) or "  (no packs configured)"
+            for i, (name, p) in enumerate(cfg.providers.items())
+        )
+        or "  (no packs configured)"
+    )
 
     overview = (
         f"App              {settings.APP_NAME} v{settings.APP_VERSION} ({settings.ENV_MODE.value})\n"

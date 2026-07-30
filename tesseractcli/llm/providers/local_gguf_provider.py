@@ -10,6 +10,7 @@ machine that only uses cloud providers.
 `model_name` here is interpreted as a path to a .gguf file. If not
 given, falls back to `Settings.LOCAL_GGUF_MODEL_PATH`.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,7 +35,7 @@ class LocalGGUFProvider(BaseLLMProvider):
             raise FileNotFoundError(f"GGUF model file not found: {model_path}")
 
         try:
-            from langchain_community.chat_models import ChatLlamaCpp #type: ignore 
+            from langchain_community.chat_models import ChatLlamaCpp  # type: ignore
         except ImportError as e:
             raise ImportError(
                 "llama-cpp-python is required for the local GGUF provider. "

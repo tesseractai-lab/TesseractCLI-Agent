@@ -36,7 +36,11 @@ from typing import Any, Final
 import yaml
 from pydantic import ValidationError
 
-from tesseractcli.models.exceptions import ConfigError, ConfigFileNotFoundError, InvalidConfigError
+from tesseractcli.models.exceptions import (
+    ConfigError,
+    ConfigFileNotFoundError,
+    InvalidConfigError,
+)
 from tesseractcli.models.config_models.global_config_models import GlobalConfig
 from tesseractcli.config.global_config.packs_manager import PacksManager
 from tesseractcli.config.global_config.paths_manager import PathAccessor

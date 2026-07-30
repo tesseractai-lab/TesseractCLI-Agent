@@ -2,11 +2,13 @@
 tesseractcli/llm/providers/base.py
 Abstract base class for all LLM providers (LangChain-based).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 
 from tesseractcli.config.logger import logger
 from tesseractcli.config.settings import get_settings
@@ -19,17 +21,16 @@ class BaseLLMProvider(ABC):
     DEFAULT_MAX_RETRIES: int = 3
     DEFAULT_RATE_LIMIT_RPS: float | None = None
 
-
     def __init__(self) -> None:
         self.config = get_settings()
-        self._cache: dict[str, BaseChatModel] = {}
-        self._raw_cache: dict[str, BaseChatModel] = {}   # unwrapped models, keyed same as _cache
+        self._cache: dict[str, Runnable] = {}  # changed to Runnable
+        self._raw_cache: dict[str, BaseChatModel] = {}
 
     # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
 
-    def get_model_safe(self, model_name: str, **kwargs) -> BaseChatModel | None:
+    def get_model_safe(self, model_name: str, **kwargs) -> Runnable | None:
         """Same as get_model, but swallows errors so a dispatcher can
         fall back to the next provider in the chain instead of crashing."""
         try:
@@ -40,10 +41,9 @@ class BaseLLMProvider(ABC):
             logger.error("failed to load '{}': {}", model_name, e)
             return None
 
-
     def get_model_with_tools_safe(
         self, model_name: str, tools: list[dict], **kwargs
-    ) -> BaseChatModel | None:
+    ) -> Runnable | None:
         """Same as get_model_with_tools, but swallows errors so a dispatcher
         can fall back to the next provider in the chain instead of crashing."""
         try:
@@ -74,15 +74,19 @@ class BaseLLMProvider(ABC):
             self._raw_cache[cache_key] = self._load_model(model_name, **kwargs)
         return self._raw_cache[cache_key]
 
-    def _get_model(self, model_name: str, **kwargs) -> BaseChatModel:
+    def _get_model(self, model_name: str, **kwargs) -> Runnable:
         """Public factory. Caches the instance and wraps it with retry."""
         cache_key = self._cache_key(model_name, **kwargs)
         if cache_key not in self._cache:
             raw_model = self._get_raw_model(model_name, **kwargs)
-            self._cache[cache_key] = raw_model.with_retry(stop_after_attempt=self.DEFAULT_MAX_RETRIES)
-        return self._cache[cache_key]
+            self._cache[cache_key] = raw_model.with_retry(
+                stop_after_attempt=self.DEFAULT_MAX_RETRIES
+            )
+        return self._cache[cache_key]  # now Runnable
 
-    def _get_model_with_tools(self, model_name: str, tools: list[dict], **kwargs) -> BaseChatModel:
+    def _get_model_with_tools(
+        self, model_name: str, tools: list[dict], **kwargs
+    ) -> Runnable:
         """Same underlying model as get_model(), but bind_tools() happens
         BEFORE with_retry() - RunnableRetry doesn't proxy bind_tools, so
         this order is not optional. Not cached across calls (bind_tools

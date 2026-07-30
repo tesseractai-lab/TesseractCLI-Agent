@@ -18,8 +18,12 @@ class WriteFileArgs(BaseModel):
 
 class ReadFileArgs(BaseModel):
     path: str = Field(description="Path to the file, relative to workspace root")
-    start_line: int | None = Field(default=None, description="1-indexed start line, inclusive")
-    end_line: int | None = Field(default=None, description="1-indexed end line, inclusive")
+    start_line: int | None = Field(
+        default=None, description="1-indexed start line, inclusive"
+    )
+    end_line: int | None = Field(
+        default=None, description="1-indexed end line, inclusive"
+    )
 
 
 class EditFileArgs(BaseModel):
@@ -29,11 +33,15 @@ class EditFileArgs(BaseModel):
 
 
 class ListDirectoryArgs(BaseModel):
-    path: str = Field(default=".", description="Directory path, relative to workspace root")
+    path: str = Field(
+        default=".", description="Directory path, relative to workspace root"
+    )
 
 
 class RunCommandArgs(BaseModel):
-    command: list[str] = Field(description= """Argv list for the command, e.g. ['cat', 'path/to/file'].
+    command: list[str] = Field(
+        description="""Argv list for the command, e.g. ['cat', 'path/to/file'].
         Do NOT wrap in a shell interpreter (no 'bash -c', 'sh -c',
         '-lc', etc.) — pass the target program and its arguments
-        directly as separate list items.""")
+        directly as separate list items."""
+    )

@@ -4,10 +4,12 @@ Direct OpenAI (no custom base_url) - kept separate from the OpenAI-
 compatible providers (Cerebras/Mistral/HF) even though it uses the same
 ChatOpenAI class, so each has its own key/config/rate-limit lifecycle.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -28,7 +30,7 @@ class OpenAIProvider(BaseLLMProvider):
 
         return ChatOpenAI(
             model=model_name,
-            api_key=self.config.OPENAI_API_KEY,
+            api_key=SecretStr(self.config.OPENAI_API_KEY),
             rate_limiter=rate_limiter,
             **kwargs,
         )

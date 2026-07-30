@@ -4,20 +4,24 @@ tesseractcli/tools/read_file.py
 
 import time
 from pathlib import Path
+from typing import cast
 
 from tesseractcli.models.tool_models import ToolResult, ReadFileMetadata, ReadFileArgs
-from tesseractcli.models.exceptions import FileNotFoundInWorkspace, PathEscapesWorkspaceError, SensitiveFileBlocked
+from tesseractcli.models.exceptions import (
+    FileNotFoundInWorkspace,
+    PathEscapesWorkspaceError,
+    SensitiveFileBlocked,
+)
 from tesseractcli.tools.sandbox import safe_open
 from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.config.settings import get_settings as config
 
 
-
 def read_file(
-        workspace_root: Path,
-        path: str,
-        start_line: int | None = None,
-        end_line: int | None = None,
+    workspace_root: Path,
+    path: str,
+    start_line: int | None = None,
+    end_line: int | None = None,
 ) -> ToolResult:
 
     started = time.monotonic()
@@ -38,7 +42,7 @@ def read_file(
             metadata["truncated"] = hi < total_lines or lo > 0
             content = "".join(selected)
         elif total_lines > config().MAX_LINES_WITHOUT_RANGE:
-            selected = lines[:config().MAX_LINES_WITHOUT_RANGE]
+            selected = lines[: config().MAX_LINES_WITHOUT_RANGE]
             metadata["truncated"] = True
             metadata["hint"] = (
                 f"File has {total_lines} lines, showing first "
@@ -50,7 +54,9 @@ def read_file(
             content = "".join(lines)
 
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
-        return ToolResult(tool_name="read_file", success=True, output=content, metadata=metadata)
+        return ToolResult(
+            tool_name="read_file", success=True, output=content, metadata=cast(dict, metadata)
+        )
 
     except PathEscapesWorkspaceError as e:
         return ToolResult(tool_name="read_file", success=False, output="", error=str(e))
@@ -59,11 +65,26 @@ def read_file(
     except SensitiveFileBlocked as e:
         return ToolResult(tool_name="read_file", success=False, output="", error=str(e))
     except PermissionError:
-        return ToolResult(tool_name="read_file", success=False, output="",
-                           error=f"Permission denied reading '{path}'.")
+        return ToolResult(
+            tool_name="read_file",
+            success=False,
+            output="",
+            error=f"Permission denied reading '{path}'.",
+        )
     except UnicodeDecodeError:
-        return ToolResult(tool_name="read_file", success=False, output="",
-                           error=f"'{path}' is not a valid UTF-8 text file (binary?).")
+        return ToolResult(
+            tool_name="read_file",
+            success=False,
+            output="",
+            error=f"'{path}' is not a valid UTF-8 text file (binary?).",
+        )
+
 
 def register(registry: ToolRegistry) -> None:
-    registry.add(name="read_file", schema=ReadFileArgs, fn=read_file,needs_approval=False, core=False)
+    registry.add(
+        name="read_file",
+        schema=ReadFileArgs,
+        fn=read_file,
+        needs_approval=False,
+        core=False,
+    )

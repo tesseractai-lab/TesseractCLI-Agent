@@ -65,20 +65,28 @@ GLOBAL_HELP_TEXT = (
     + "\n"
     "[bold #4dd8ff]Model[/bold #4dd8ff]\n"
     + _row(
-        "model", "", "pick a different model pack",
+        "model",
+        "",
+        "pick a different model pack",
         "(also: '+ Add new pack' - asks y/n to activate it once added;",
         "'Cancel' in the list)",
     )
     + _row(
-        "-cfg model \\[pack]", "", "switch pack without leaving chat",
+        "-cfg model \\[pack]",
+        "",
+        "switch pack without leaving chat",
         "(no pack name -> opens the picker instead)",
     )
     + _row(
-        "-cfg -ws \\[path]", "", "switch workspace without leaving chat",
+        "-cfg -ws \\[path]",
+        "",
+        "switch workspace without leaving chat",
         "(no path -> opens the interactive prompt instead)",
     )
     + _row(
-        "-cfg <settings command>", "", "run it inline, e.g. -cfg -a -p x y z,",
+        "-cfg <settings command>",
+        "",
+        "run it inline, e.g. -cfg -a -p x y z,",
         "-cfg -rn pack old new, -cfg -rm -p mypack",
         "(-rm -p asks y/n before deleting the pack)",
     )
@@ -88,11 +96,15 @@ GLOBAL_HELP_TEXT = (
     + _row("expand", "(-e, --expand)", "show the full text of the last truncated input")
     + _row("clear", "(-cl, --clear, cls)", "clear the terminal")
     + _row(
-        "reset \\[temp]", "(-rst, --reset)", "clear temp memory (LLM context), asks for y/n;",
+        "reset \\[temp]",
+        "(-rst, --reset)",
+        "clear temp memory (LLM context), asks for y/n;",
         "conversation.db is untouched (also: -cfg reset \\[temp])",
     )
     + _row(
-        "reload \\[cfg]", "(-rl, --reload)", "re-read global_config.yaml from disk",
+        "reload \\[cfg]",
+        "(-rl, --reload)",
+        "re-read global_config.yaml from disk",
         "(aliases: cfg/config/settings; also: -cfg reload \\[cfg])",
     )
     + _row("help", "(-h, --help, ?)", "show this help")
@@ -108,7 +120,12 @@ GLOBAL_HELP_TEXT = (
 def render_help(app: "TesseractApp") -> Any:
     body = GLOBAL_HELP_TEXT
     if app.stage == "settings":
-        from tesseractcli.ui.views.settings_commands import HELP_TEXT as SETTINGS_HELP_TEXT
+        from tesseractcli.ui.views.settings_commands import (
+            HELP_TEXT as SETTINGS_HELP_TEXT,
+        )
 
-        body += "\n\n[bold]Settings commands[/bold] (this list only while in settings)\n" + SETTINGS_HELP_TEXT
+        body += (
+            "\n\n[bold]Settings commands[/bold] (this list only while in settings)\n"
+            + SETTINGS_HELP_TEXT
+        )
     return render_box("Help", body, style="#e8a33d")

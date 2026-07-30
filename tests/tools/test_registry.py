@@ -17,6 +17,7 @@ from tesseractcli.models.tool_models import ToolResult
 
 class _FakeArgs(BaseModel):
     """Args model وهمي بس لغرض الاختبار، بيحاكي شكل أي tool حقيقي."""
+
     value: int
 
 

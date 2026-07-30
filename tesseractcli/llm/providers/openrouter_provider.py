@@ -2,10 +2,12 @@
 tesseractcli/llm/providers/openrouter_provider.py
 OpenRouter is OpenAI-compatible - same pattern as Cerebras/Mistral/HF.
 """
+
 from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
@@ -13,6 +15,7 @@ from tesseractcli.llm.providers.base import BaseLLMProvider
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # https://openrouter.ai/api/v1/chat/completions
+
 
 class OpenRouterProvider(BaseLLMProvider):
     DEFAULT_RATE_LIMIT_RPS: float | None = 1.0
@@ -31,7 +34,7 @@ class OpenRouterProvider(BaseLLMProvider):
 
         return ChatOpenAI(
             model=model_name,
-            api_key=self.config.OPENROUTER_API_KEY,
+            api_key=SecretStr(self.config.OPENROUTER_API_KEY),
             base_url=OPENROUTER_BASE_URL,
             rate_limiter=rate_limiter,
             **kwargs,
