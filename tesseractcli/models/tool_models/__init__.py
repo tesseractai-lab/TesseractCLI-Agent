@@ -5,6 +5,7 @@ from .tools_result import (
     EditFileMetadata,
     ListDirectoryMetadata,
     RunCommandMetadata,
+    SideEffect
 )
 from .tool_args import (
     EditFileArgs,
@@ -26,4 +27,5 @@ __all__ = [
     "ReadFileArgs",
     "RunCommandArgs",
     "WriteFileArgs",
+    "SideEffect"
 ]

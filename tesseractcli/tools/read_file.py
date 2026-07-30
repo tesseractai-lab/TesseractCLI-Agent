@@ -4,6 +4,7 @@ tesseractcli/tools/read_file.py
 
 import time
 from pathlib import Path
+from typing import cast
 
 from tesseractcli.models.tool_models import ToolResult, ReadFileMetadata, ReadFileArgs
 from tesseractcli.models.exceptions import (
@@ -54,7 +55,7 @@ def read_file(
 
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
         return ToolResult(
-            tool_name="read_file", success=True, output=content, metadata=metadata
+            tool_name="read_file", success=True, output=content, metadata=cast(dict, metadata)
         )
 
     except PathEscapesWorkspaceError as e:

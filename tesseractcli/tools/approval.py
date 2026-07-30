@@ -115,13 +115,16 @@ def approve_tool_call(tool_name: str, tool_args: dict, workspace_root: Path) -> 
     loop already filtered out tools that don't need this (read_file,
     list_directory), so no needs_approval check happens here.
     """
+    path = tool_args.get("path")
+    if path is None:
+        raise Exception ("`approve_tool_call` Path is None")
+
     if tool_name == "write_file":
-        path = tool_args.get("path")
         content = tool_args.get("content", "")
         full_path = Path(workspace_root) / path
         preview = render_write_diff(full_path, content)
+
     elif tool_name == "edit_file":
-        path = tool_args.get("path")
         old_str = tool_args.get("old_str", "")
         new_str = tool_args.get("new_str", "")
         preview = render_edit_diff(path, old_str, new_str)

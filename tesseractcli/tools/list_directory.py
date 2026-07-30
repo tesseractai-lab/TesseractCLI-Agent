@@ -4,6 +4,7 @@ tesseractcli/tools/list_directory.py
 
 import time
 from pathlib import Path
+from typing import cast
 
 from tesseractcli.models.tool_models import (
     ToolResult,
@@ -57,7 +58,7 @@ def list_directory(
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
 
         return ToolResult(
-            tool_name="list_directory", success=True, output=output, metadata=metadata
+            tool_name="list_directory", success=True, output=output, metadata=cast(dict, metadata)
         )
 
     except PathEscapesWorkspaceError as e:

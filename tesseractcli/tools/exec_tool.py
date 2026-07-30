@@ -11,9 +11,10 @@ with; see the approval-gate design (Phase 4 of the roadmap) for where
 import subprocess
 import time
 from pathlib import Path
+from typing import List
 
 from tesseractcli.models import ToolResult
-from tesseractcli.models.tool_models import RunCommandMetadata, RunCommandArgs
+from tesseractcli.models.tool_models import RunCommandMetadata, RunCommandArgs, SideEffect
 from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.tools.sandbox.command_policy import check_command
 from tesseractcli.config.settings import get_settings as config
@@ -86,9 +87,10 @@ def run_command(
         duration_ms = round((time.monotonic() - started) * 1000, 2)
         metadata["timed_out"] = True
         metadata["duration_ms"] = duration_ms
-        metadata["side_effects"] = [
+        side_effects: List[SideEffect] = [
             {"type": "process_killed", "detail": f"SIGKILL after {timeout}s timeout"}
         ]
+        metadata["side_effects"] = side_effects
         return ToolResult(
             tool_name="run_command",
             success=False,

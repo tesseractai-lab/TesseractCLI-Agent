@@ -4,6 +4,7 @@ tesseractcli/tools/edit_file.py
 
 import time
 from pathlib import Path
+from typing import cast
 
 
 from tesseractcli.models.tool_models import ToolResult, EditFileMetadata, EditFileArgs
@@ -41,7 +42,7 @@ def edit_file(
                 success=False,
                 output="",
                 error="old_str not found in file. Check exact whitespace/content.",
-                metadata=metadata,
+                metadata=cast(dict, metadata),
             )
         if match_count > 1:
             return ToolResult(
@@ -50,7 +51,7 @@ def edit_file(
                 output="",
                 error=f"old_str is not unique ({match_count} matches). "
                 f"Provide more surrounding context to make it unique.",
-                metadata=metadata,
+                metadata=cast(dict, metadata),
             )
 
         updated = original.replace(old_str, new_str, 1)
@@ -60,7 +61,7 @@ def edit_file(
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
 
         return ToolResult(
-            tool_name="edit_file", success=True, output="", metadata=metadata
+            tool_name="edit_file", success=True, output="", metadata=cast(dict, metadata)
         )
 
     except PathEscapesWorkspaceError as e:

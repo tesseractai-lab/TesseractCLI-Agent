@@ -2,19 +2,15 @@
 tesseractcli.models.tools_result.py
 
 The shared contract every tool in this package returns: `ToolResult`.
-
-
 """
 
 from pydantic import BaseModel, Field
-from typing import TypeAlias, List, Any
+from typing import TypeAlias, Any
 from typing_extensions import TypedDict
-
 
 # ---------------------------------------------------------------------------
 # Shared building blocks
 # ---------------------------------------------------------------------------
-
 
 class SideEffect(TypedDict):
     """A single side effect entry. Structured, not free text, so an approval
@@ -29,23 +25,19 @@ class BaseMetadata(TypedDict, total=False):
     call produces every kind of information (e.g. a call that fails fast
     with a validation error has no meaningful duration to report)."""
 
-    side_effects: List[SideEffect]
+    side_effects: list[SideEffect]
     duration_ms: float
-
 
 # ---------------------------------------------------------------------------
 # Per-tool metadata schemas
 # ---------------------------------------------------------------------------
-
 
 class ReadFileMetadata(BaseMetadata, total=False):
     path: str
     total_lines: int
     truncated: bool
     encoding: str
-    hint: (
-        str  # e.g. "File has 3400 lines, showing first 2000. Use start_line/end_line."
-    )
+    hint: str
 
 
 class WriteFileMetadata(BaseMetadata, total=False):
@@ -56,7 +48,7 @@ class WriteFileMetadata(BaseMetadata, total=False):
 
 class EditFileMetadata(BaseMetadata, total=False):
     path: str
-    match_count: int  # how many times old_str matched (for error diagnostics)
+    match_count: int
     chars_replaced: int
 
 
@@ -68,7 +60,6 @@ class RunCommandMetadata(BaseMetadata, total=False):
     blocked_reason: str
     stdout_truncated: bool
     stderr_truncated: bool
-    side_effects: list[dict]
     duration_ms: float
 
 
@@ -77,30 +68,17 @@ class ListDirectoryMetadata(BaseMetadata, total=False):
     item_count: int
     duration_ms: float
 
-
 # ---------------------------------------------------------------------------
 # The ToolResult contract itself
 # ---------------------------------------------------------------------------
 
 ToolMetadata: TypeAlias = (
-    RunCommandMetadata
-    | ReadFileMetadata
-    | WriteFileMetadata
-    | EditFileMetadata
-    | ListDirectoryMetadata
+    RunCommandMetadata | ReadFileMetadata | WriteFileMetadata | EditFileMetadata | ListDirectoryMetadata
 )
 
-
 class ToolResult(BaseModel):
-    """Standard result returned by every tool.
-
-    Encapsulates the execution outcome, primary output, optional error
-    information, and structured tool-specific metadata in a consistent
-    format shared across all tools.
-    """
-
     tool_name: str = Field(...)
     success: bool = Field(...)
-    output: str
+    output: str = ""
     error: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: ToolMetadata | dict[str, Any] = Field(default_factory=dict)
