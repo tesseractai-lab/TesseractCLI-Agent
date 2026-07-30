@@ -244,6 +244,12 @@ class TesseractApp(App):
     #mode-line { height: 1; width: 1fr; padding: 0; color: #7c8bff; }
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.workspace_root: Path | None = None
+        self._last_workspace: tuple[str, str] | None = None
+        self._pending_config_error: tuple[str, str] | None = None
+
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """`#main-input` starts at `height: 1` (see CSS) since almost
         every stage - workspace path, settings commands, wizard steps,
@@ -327,7 +333,7 @@ class TesseractApp(App):
         self.config_manager = ConfigManager()
         self.dispatcher = LLMDispatcher(RoutingResolver(self.config_manager))
         self._load_config_safely()
-        self.workspace_root: Path | None = None
+        self.workspace_root = None
         self.selected_pack: str | None = None
         self.messages = (
             PersistentMessageList()
@@ -1405,6 +1411,7 @@ class TesseractApp(App):
         reads as one unit instead of two separate scrollback entries."""
         self.set_status("[dim]● thinking…[/dim]")
         try:
+            assert self.workspace_root is not None, "Workspace root must be set"
             reply = await run_inner_loop(
                 user_input=user_text,
                 messages=self.messages,
