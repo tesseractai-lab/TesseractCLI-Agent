@@ -60,7 +60,10 @@ def edit_file(
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
 
         return ToolResult(
-            tool_name="edit_file", success=True, output="", metadata=cast(dict, metadata)
+            tool_name="edit_file",
+            success=True,
+            output="",
+            metadata=cast(dict, metadata),
         )
 
     except PathEscapesWorkspaceError as e:

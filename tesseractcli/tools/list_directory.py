@@ -58,7 +58,10 @@ def list_directory(
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
 
         return ToolResult(
-            tool_name="list_directory", success=True, output=output, metadata=cast(dict, metadata)
+            tool_name="list_directory",
+            success=True,
+            output=output,
+            metadata=cast(dict, metadata),
         )
 
     except PathEscapesWorkspaceError as e:

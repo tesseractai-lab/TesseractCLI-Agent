@@ -46,7 +46,9 @@ class _FakeResolver:
             raise ValueError(f"Pack '{pack_name or 'default'}' has an empty pool.")
         return pack.pool[0]
 
-    def resolve_step(self, pack_name: str | None, provider: str, model: str) -> ModelConfig:
+    def resolve_step(
+        self, pack_name: str | None, provider: str, model: str
+    ) -> ModelConfig:
         """Simulate step resolution - just construct the config."""
         return ModelConfig(provider=provider, model=model)
 

@@ -208,7 +208,7 @@ class SelectableStatic(Static):
 class TesseractApp(App):
     TITLE = "TesseractCLI"
 
-    BINDINGS: ClassVar[list[Binding]] = [
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("ctrl+c", "quit", "Exit"),
     ]
 

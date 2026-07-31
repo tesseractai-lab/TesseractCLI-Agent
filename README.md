@@ -284,7 +284,9 @@ Tools are functions that the LLM can invoke to perform tasks like file operation
   - A **flag** indicating if approval is required.
 - Example:
   ```python
-  registry.add(name="run_command", schema=RunCommandArgs, fn=run_command, needs_approval=True)
+  registry.add(
+      name="run_command", schema=RunCommandArgs, fn=run_command, needs_approval=True
+  )
   ```
 
 #### Sandboxing
@@ -297,7 +299,10 @@ Tools are functions that the LLM can invoke to perform tasks like file operation
   ```python
   policy_result = check_command(command)
   if policy_result.blocked:
-      return ToolResult(success=False, error=f"Command blocked by security policy: {policy_result.reason}")
+      return ToolResult(
+          success=False,
+          error=f"Command blocked by security policy: {policy_result.reason}",
+      )
   ```
 
 #### Tool Execution

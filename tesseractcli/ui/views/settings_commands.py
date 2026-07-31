@@ -245,7 +245,7 @@ def handle(manager: ConfigManager, raw: str) -> Any:
             )
             return render_box(
                 f"Pack: {pack_name}",
-                _format_pack(pack_name, pack_obj, color=pack_color(index))
+                _format_pack(pack_name, pack_obj, color=pack_color(index)),
             )
 
         if cmd == "suggest":
@@ -293,9 +293,11 @@ def handle(manager: ConfigManager, raw: str) -> Any:
             pack_name = parts[2]
             provider = parts[3]
             model = parts[4]
-            target: Literal['pool', 'fallback'] = cast(
-                Literal['pool', 'fallback'],
-                "fallback" if len(parts) >= 6 and parts[5].lower() == "fallback" else "pool"
+            target: Literal["pool", "fallback"] = cast(
+                Literal["pool", "fallback"],
+                "fallback"
+                if len(parts) >= 6 and parts[5].lower() == "fallback"
+                else "pool",
             )
             manager.packs.add_model(pack_name, provider, model, target=target)
             manager.save()
@@ -311,8 +313,8 @@ def handle(manager: ConfigManager, raw: str) -> Any:
             confirmed = parts[-1].lower() == "confirm"
             tail = parts[5:-1] if confirmed else parts[5:]
             target = cast(
-                Literal['pool', 'fallback'],
-                "fallback" if tail and tail[0].lower() == "fallback" else "pool"
+                Literal["pool", "fallback"],
+                "fallback" if tail and tail[0].lower() == "fallback" else "pool",
             )
             if not confirmed:
                 suffix = " fallback" if target == "fallback" else ""

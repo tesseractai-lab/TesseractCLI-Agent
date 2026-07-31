@@ -52,8 +52,9 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(...)
 
     # ===== Logging =====
-    LOG_LEVEL: str = Field(...)
-    # Superseded by the per-workspace layout under ~/.tesseract/logs
+    LOG_LEVEL: str = (
+        "INFO"  # Superseded by the per-workspace layout under ~/.tesseract/logs
+    )
     # (see tesseractcli/logging/workspace.py, and LOGS_ROOT /
     # TESSERACT_LOGS_DIR in tesseractcli/config/logger.py). Kept here,
     # unused, only so an existing .env with LOG_DIR set still validates.

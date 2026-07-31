@@ -119,7 +119,7 @@ def approve_tool_call(tool_name: str, tool_args: dict, workspace_root: Path) -> 
     """
     path = tool_args.get("path")
     if path is None:
-        raise ApprovalError ("`approve_tool_call` Path is None")
+        raise ApprovalError("`approve_tool_call` Path is None")
 
     if tool_name == "write_file":
         content = tool_args.get("content", "")
