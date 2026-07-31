@@ -4,8 +4,9 @@ tesseractcli.models.tools_result.py
 The shared contract every tool in this package returns: `ToolResult`.
 """
 
+from typing import Any, TypeAlias
+
 from pydantic import BaseModel, Field
-from typing import TypeAlias, Any
 from typing_extensions import TypedDict
 
 # ---------------------------------------------------------------------------

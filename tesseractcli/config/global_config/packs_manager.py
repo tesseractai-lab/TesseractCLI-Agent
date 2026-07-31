@@ -23,8 +23,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from tesseractcli.models.exceptions import ConfigModelError, ConfigPackError
 from tesseractcli.models.config_models.provider_models import ModelPack
+from tesseractcli.models.exceptions import ConfigModelError, ConfigPackError
 
 if TYPE_CHECKING:
     from tesseractcli.config.global_config.manager import ConfigManager
@@ -43,7 +43,7 @@ class PacksManager:
     construct one directly.
     """
 
-    def __init__(self, manager: "ConfigManager") -> None:
+    def __init__(self, manager: ConfigManager) -> None:
         """Bind this object to the ConfigManager it will read from and write to.
 
         Args:

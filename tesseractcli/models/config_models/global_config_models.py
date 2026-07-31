@@ -1,11 +1,12 @@
 """tesseractcli/models/config_models/global_config_models.py"""
 
 from __future__ import annotations
+
 from pydantic import BaseModel, ConfigDict, Field
 
-from tesseractcli.models.config_models.provider_models import ModelPack
-from tesseractcli.models.config_models.path_models import PathsConfig
 from tesseractcli.models.config_models.agent_models import AgentConfig
+from tesseractcli.models.config_models.path_models import PathsConfig
+from tesseractcli.models.config_models.provider_models import ModelPack
 from tesseractcli.models.config_models.verbose_models import VerboseConfig
 
 

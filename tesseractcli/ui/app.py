@@ -178,8 +178,8 @@ def _truncate_path_display(path: Path | None, *, max_parts: int = 2) -> str:
     """Display a shortened workspace path.
 
     Examples:
-        G:\foo\bar\Project\tests -> ~\Project\tests
-        G:\foo\bar\Project       -> ~\Project
+        G:\foo\bar\\Project\tests -> ~\\Project\tests
+        G:\foo\bar\\Project       -> ~\\Project
     """
     if path is None:
         return "(not set)"

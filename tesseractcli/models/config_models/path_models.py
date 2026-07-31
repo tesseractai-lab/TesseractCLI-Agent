@@ -1,7 +1,9 @@
 """tesseractcli/models/config_models/path_models.py"""
 
 from __future__ import annotations
+
 from pathlib import Path
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

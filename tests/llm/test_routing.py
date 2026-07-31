@@ -1,8 +1,8 @@
 import pytest
 
-from tesseractcli.models.exceptions import ConfigPackError
 from tesseractcli.config.global_config.manager import ConfigManager
 from tesseractcli.llm.routing import DEFAULT_PACK_NAME, RoutingResolver
+from tesseractcli.models.exceptions import ConfigPackError
 
 
 @pytest.fixture

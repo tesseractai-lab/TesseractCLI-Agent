@@ -1,6 +1,7 @@
 """tesseractcli/models/config_models/provider_models"""
 
 from __future__ import annotations
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

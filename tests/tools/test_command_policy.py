@@ -9,7 +9,6 @@ tests/tools/sandbox/test_command_policy.py
 
 from tesseractcli.tools.sandbox.command_policy import check_command
 
-
 # --- الطبقة 1: منع استدعاء shell interpreters مباشرة ---
 
 

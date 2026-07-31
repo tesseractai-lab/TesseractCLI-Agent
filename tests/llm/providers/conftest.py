@@ -10,7 +10,6 @@ import pytest
 
 from tesseractcli.config.settings import Settings
 
-
 # Every env var a provider might read - cleared before each test so tests
 # never leak into each other or pick up a real key from the host env.
 ALL_PROVIDER_ENV_VARS = [

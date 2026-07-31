@@ -12,12 +12,11 @@ from textual.widgets import Static
 
 class PlaceholderScreen(Screen):
     def compose(self) -> ComposeResult:
-        with Center():
-            with Middle():
-                yield Static(
-                    "[bold]Workspace / model picker goes here.[/bold]\n\n"
-                    "[dim]press q to quit[/dim]"
-                )
+        with Center(), Middle():
+            yield Static(
+                "[bold]Workspace / model picker goes here.[/bold]\n\n"
+                "[dim]press q to quit[/dim]"
+            )
 
     def on_key(self, event) -> None:
         if event.key == "q":

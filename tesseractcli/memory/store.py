@@ -59,9 +59,10 @@ import json
 import os
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
@@ -224,14 +225,14 @@ class ConversationStore:
             (
                 self.session_id,
                 str(self.workspace_root),
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         self._conn.commit()
 
     def save_message(self, message: BaseMessage) -> None:
         role, content = _role_and_content(message)
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         try:
             cursor = self._conn.execute(
                 "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",

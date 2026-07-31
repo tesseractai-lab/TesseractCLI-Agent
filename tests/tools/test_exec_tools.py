@@ -11,8 +11,8 @@ builtins بس). البديل: نستخدم sys.executable (نفس الـ Python 
 import sys
 from pathlib import Path
 
-from tesseractcli.tools.exec_tool import run_command
 from tesseractcli.config.settings import get_settings as config
+from tesseractcli.tools.exec_tool import run_command
 
 MAX_OUTPUT_CHARS = config().MAX_OUTPUT_CHARS
 

@@ -27,8 +27,9 @@ in the same gate instead of being called separately by each tool.
 import contextlib
 import os
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import IO, Iterator
+from typing import IO
 
 from tesseractcli.models.exceptions import FileNotFoundInWorkspace, SensitiveFileBlocked
 from tesseractcli.tools.sandbox import sensitive_files

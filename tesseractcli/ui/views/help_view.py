@@ -117,7 +117,7 @@ GLOBAL_HELP_TEXT = (
 )
 
 
-def render_help(app: "TesseractApp") -> Any:
+def render_help(app: TesseractApp) -> Any:
     body = GLOBAL_HELP_TEXT
     if app.stage == "settings":
         from tesseractcli.ui.views.settings_commands import (

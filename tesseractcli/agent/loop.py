@@ -39,8 +39,9 @@ Step 6 change (Textual integration): this is now `async def`.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable, TypeAlias
+from typing import TypeAlias
 
 from langchain_core.messages import (
     AIMessage,

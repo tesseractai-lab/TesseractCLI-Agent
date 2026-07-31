@@ -11,13 +11,16 @@ with; see the approval-gate design (Phase 4 of the roadmap) for where
 import subprocess
 import time
 from pathlib import Path
-from typing import List
 
+from tesseractcli.config.settings import get_settings as config
 from tesseractcli.models import ToolResult
-from tesseractcli.models.tool_models import RunCommandMetadata, RunCommandArgs, SideEffect
+from tesseractcli.models.tool_models import (
+    RunCommandArgs,
+    RunCommandMetadata,
+    SideEffect,
+)
 from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.tools.sandbox.command_policy import check_command
-from tesseractcli.config.settings import get_settings as config
 
 
 def _truncate(text: str, limit: int = config().MAX_OUTPUT_CHARS) -> tuple[str, bool]:
@@ -87,7 +90,7 @@ def run_command(
         duration_ms = round((time.monotonic() - started) * 1000, 2)
         metadata["timed_out"] = True
         metadata["duration_ms"] = duration_ms
-        side_effects: List[SideEffect] = [
+        side_effects: list[SideEffect] = [
             {"type": "process_killed", "detail": f"SIGKILL after {timeout}s timeout"}
         ]
         metadata["side_effects"] = side_effects

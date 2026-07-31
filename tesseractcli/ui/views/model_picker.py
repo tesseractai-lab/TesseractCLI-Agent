@@ -32,7 +32,7 @@ class PackChoice:
         return f"{self.name} — {self.description}"
 
 
-def load_pack_choices(manager: "ConfigManager") -> list["PackChoice"]:
+def load_pack_choices(manager: ConfigManager) -> list[PackChoice]:
     """Build the picker's option list from the live global_config.yaml.
 
     The description previews the primary model (plus a count of any

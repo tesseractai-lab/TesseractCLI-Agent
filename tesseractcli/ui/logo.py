@@ -7,6 +7,7 @@ markup version with a gradient is built from it at import time.
 """
 
 from __future__ import annotations
+
 from tesseractcli.config.settings import get_settings
 
 version = get_settings().APP_VERSION
