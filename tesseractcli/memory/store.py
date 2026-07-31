@@ -179,6 +179,7 @@ def _model_meta_row(message: AIMessage) -> dict:
         "output_tokens": usage.get("output_tokens"),
     }
 
+
 def _tool_row(message: ToolMessage) -> dict:
     """name/args/success come from `additional_kwargs`, set by
     `agent/loop.py` when it builds the ToolMessage (it already has the

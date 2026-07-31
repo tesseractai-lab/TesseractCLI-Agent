@@ -13,6 +13,7 @@ from typing_extensions import TypedDict
 # Shared building blocks
 # ---------------------------------------------------------------------------
 
+
 class SideEffect(TypedDict):
     """A single side effect entry. Structured, not free text, so an approval
     layer can iterate over these generically across any tool."""
@@ -29,9 +30,11 @@ class BaseMetadata(TypedDict, total=False):
     side_effects: list[SideEffect]
     duration_ms: float
 
+
 # ---------------------------------------------------------------------------
 # Per-tool metadata schemas
 # ---------------------------------------------------------------------------
+
 
 class ReadFileMetadata(BaseMetadata, total=False):
     path: str
@@ -69,13 +72,19 @@ class ListDirectoryMetadata(BaseMetadata, total=False):
     item_count: int
     duration_ms: float
 
+
 # ---------------------------------------------------------------------------
 # The ToolResult contract itself
 # ---------------------------------------------------------------------------
 
 ToolMetadata: TypeAlias = (
-    RunCommandMetadata | ReadFileMetadata | WriteFileMetadata | EditFileMetadata | ListDirectoryMetadata
+    RunCommandMetadata
+    | ReadFileMetadata
+    | WriteFileMetadata
+    | EditFileMetadata
+    | ListDirectoryMetadata
 )
+
 
 class ToolResult(BaseModel):
     tool_name: str = Field(...)

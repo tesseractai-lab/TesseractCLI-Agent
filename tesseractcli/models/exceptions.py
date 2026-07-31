@@ -76,5 +76,7 @@ class ConfigModelError(ConfigError):
 
 class SensitiveFileBlocked(Exception):
     """Raised when a path matches a sensitive-file denylist pattern."""
+
+
 class ApprovalError(Exception):
     """Raised when approval tool arguments are invalid."""

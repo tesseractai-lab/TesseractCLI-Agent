@@ -55,7 +55,10 @@ def read_file(
 
         metadata["duration_ms"] = round((time.monotonic() - started) * 1000, 2)
         return ToolResult(
-            tool_name="read_file", success=True, output=content, metadata=cast(dict, metadata)
+            tool_name="read_file",
+            success=True,
+            output=content,
+            metadata=cast(dict, metadata),
         )
 
     except PathEscapesWorkspaceError as e:

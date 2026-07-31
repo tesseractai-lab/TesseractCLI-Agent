@@ -216,7 +216,10 @@ class LLMDispatcher:
         primary = self._resolver.resolve_primary(pack_name)
         provider = self._provider_for(primary.provider)
         return provider.get_model_safe(
-            primary.model, max_tokens=pack.max_tokens, temperature=pack.temperature, **kwargs
+            primary.model,
+            max_tokens=pack.max_tokens,
+            temperature=pack.temperature,
+            **kwargs,
         )
 
     def get_llm_with_tools(

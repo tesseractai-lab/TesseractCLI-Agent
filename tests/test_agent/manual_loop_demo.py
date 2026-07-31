@@ -12,9 +12,11 @@ WORKSPACE_ROOT = Path.cwd()
 STAGES = [
     (
         "write_file",
-        ("Create a new file called scratch.txt in tests/test_agent. "
-        "Write a short multi-line note of 6-10 lines that you create yourself. "
-        "Each line should contain different text."),
+        (
+            "Create a new file called scratch.txt in tests/test_agent. "
+            "Write a short multi-line note of 6-10 lines that you create yourself. "
+            "Each line should contain different text."
+        ),
     ),
     (
         "read_file",
@@ -22,8 +24,10 @@ STAGES = [
     ),
     (
         "edit_file",
-        ("Edit tests/test_agent/scratch.txt by modifying only a small part of one line in the middle of the file. "
-        "Do not replace the whole line or the first line. Change only a short phrase within that line and leave everything else unchanged."),
+        (
+            "Edit tests/test_agent/scratch.txt by modifying only a small part of one line in the middle of the file. "
+            "Do not replace the whole line or the first line. Change only a short phrase within that line and leave everything else unchanged."
+        ),
     ),
     (
         "list_directory",
