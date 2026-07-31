@@ -29,7 +29,7 @@ throughout and is never touched here.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from tesseractcli.config.logger import IS_DEV, LOGS_ROOT, logger
@@ -92,7 +92,7 @@ def init_workspace_logging(workspace_root: str | Path) -> Path:
     workspace_dir = LOGS_ROOT / workspace_log_dir_name(workspace_root)
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
-    session_name = f"session_{datetime.now():%Y-%m-%d_%H-%M-%S}.log"
+    session_name = f"session_{datetime.now(UTC):%Y-%m-%d_%H-%M-%S}.log"
     session_path = workspace_dir / session_name
 
     if _active_sink_id is not None:

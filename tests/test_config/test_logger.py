@@ -6,7 +6,7 @@ import json
 
 
 def test_dev_log_file_is_plain_text(configured_env, workspace_root):
-    config, logger_module = configured_env("dev")
+    _config, logger_module = configured_env("dev")
 
     logger_module.logger.info("test dev message")
 
@@ -19,7 +19,7 @@ def test_dev_log_file_is_plain_text(configured_env, workspace_root):
 
 
 def test_prod_log_file_is_json(configured_env, workspace_root):
-    config, logger_module = configured_env("prod")
+    _config, logger_module = configured_env("prod")
 
     logger_module.logger.info("test prod message")
 
@@ -37,7 +37,7 @@ def test_prod_traceback_does_not_leak_local_variables(configured_env, workspace_
     (اللي بيتغيروا بين نسخ المكتبة). القيمة السرية دي متفروضش تظهر فى الملف
     لو diagnose فعلاً False.
     """
-    config, logger_module = configured_env("prod")
+    _config, logger_module = configured_env("prod")
 
     def _raise_with_secret():
         fake_secret_value = "sk-super-secret-token-123"  # noqa
