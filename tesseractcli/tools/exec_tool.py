@@ -62,6 +62,7 @@ def run_command(
         result = subprocess.run(
             command,
             shell=False,
+            check=False,
             cwd=workspace_root,
             capture_output=True,
             text=True,

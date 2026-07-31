@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -303,7 +303,7 @@ class ConfigManager:
         backup_dir.mkdir(parents=True, exist_ok=True)
         self._secure_dir(backup_dir)
 
-        timestamp = datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)
+        timestamp = datetime.now(UTC).strftime(BACKUP_TIMESTAMP_FORMAT)
         stem = f"{self._config_path.stem}_{timestamp}"
         suffix = self._config_path.suffix
         backup_path = backup_dir / f"{stem}{suffix}"

@@ -73,11 +73,8 @@ def safe_open(
     if "b" in mode:
         encoding = None
 
-    f = open(full_path, mode, encoding=encoding)
-    try:
+    with open(full_path, mode, encoding=encoding) as f:
         yield f
-    finally:
-        f.close()
 
 
 def atomic_write(full_path: Path, content: str, workspace_root: Path) -> None:

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -208,7 +208,7 @@ class SelectableStatic(Static):
 class TesseractApp(App):
     TITLE = "TesseractCLI"
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "quit", "Exit"),
     ]
 
