@@ -7,8 +7,9 @@ tmp_path هو fixture جاهز من pytest بيدّي مجلد مؤقت فريد
 """
 
 import importlib
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -47,8 +48,8 @@ def configured_env(workspace_root, monkeypatch):
     def _setup(mode: str):
         _write_env_files(mode)
 
-        import tesseractcli.config.settings as config
         import tesseractcli.config.logger as logger_module
+        import tesseractcli.config.settings as config
 
         monkeypatch.setenv("TESSERACT_BASE_DIR", str(workspace_root))
         # logger.py resolves its own root independently of BASE_DIR/LOG_DIR

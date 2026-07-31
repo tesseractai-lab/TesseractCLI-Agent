@@ -6,14 +6,14 @@ import time
 from pathlib import Path
 from typing import cast
 
-from tesseractcli.models.tool_models import (
-    ToolResult,
-    ListDirectoryMetadata,
-    ListDirectoryArgs,
-)
 from tesseractcli.models.exceptions import PathEscapesWorkspaceError
-from tesseractcli.tools.sandbox import resolve_in_workspace
+from tesseractcli.models.tool_models import (
+    ListDirectoryArgs,
+    ListDirectoryMetadata,
+    ToolResult,
+)
 from tesseractcli.tools.registry import ToolRegistry
+from tesseractcli.tools.sandbox import resolve_in_workspace
 
 
 def list_directory(

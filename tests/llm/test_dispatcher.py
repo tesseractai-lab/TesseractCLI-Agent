@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import HumanMessage
 
-from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.llm.dispatcher import LLMDispatcher, _truncate_last_message
+from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 
 
 def _pack(

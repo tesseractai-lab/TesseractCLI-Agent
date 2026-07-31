@@ -4,11 +4,12 @@ tesseractcli/config/settings.py
 
 import os
 from enum import StrEnum
-from dotenv import dotenv_values
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import dotenv_values
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _resolve_base_dir() -> Path:

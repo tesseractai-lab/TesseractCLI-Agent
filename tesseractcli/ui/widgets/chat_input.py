@@ -54,7 +54,7 @@ class ChatTextArea(TextArea):
         (`.value` holds the text) so the rest of the app's event-handling
         shape barely changes."""
 
-        def __init__(self, text_area: "ChatTextArea", value: str) -> None:
+        def __init__(self, text_area: ChatTextArea, value: str) -> None:
             self.text_area = text_area
             self.value = value
             super().__init__()

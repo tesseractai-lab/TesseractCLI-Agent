@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import os
 
+from rich.align import Align
+from rich.panel import Panel
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Center, Middle, Vertical
 from textual.screen import Screen
 from textual.widgets import Static
-from rich.panel import Panel
-from rich.align import Align
 
 from tesseractcli.ui.logo import (
     FALLBACK_TITLE,
@@ -66,13 +66,11 @@ class WelcomeScreen(Screen):
         # selected workspace path instead of the launch directory.
         self._workspace_path = os.getcwd()
 
-        with Center():
-            with Middle():
-                with Vertical():
-                    yield Static(self._render_logo(), id="logo")
-                    yield Static(TAGLINE, id="tagline")
-                    yield Static(self._status_text(ready=False), id="status")
-                    yield Static("[dim]press any key to continue[/dim]", id="hint")
+        with Center(), Middle(), Vertical():
+            yield Static(self._render_logo(), id="logo")
+            yield Static(TAGLINE, id="tagline")
+            yield Static(self._status_text(ready=False), id="status")
+            yield Static("[dim]press any key to continue[/dim]", id="hint")
 
     def on_mount(self) -> None:
         # Reveal "System ready" a beat after the screen appears, so it

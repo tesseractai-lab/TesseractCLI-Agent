@@ -1,12 +1,5 @@
 """
 tests/test_config/test_logger.py
-
-اختبارات logger: التأكد إن ملف اللوج فى dev نص عادي، وفى prod JSON فعلي،
-وإن الأسرار متسربش فى الـ traceback بتاع prod.
-
-ملحوظة: كل قراءة لملفات اللوج بتحدد encoding="utf-8" صراحةً، لأن على ويندوز
-الـ default مش UTF-8 دايمًا (بيبقى cp1252)، وده كان بيسبب UnicodeDecodeError
-مع محتوى JSON اللي بيكتبه loguru.
 """
 
 import json
@@ -22,7 +15,7 @@ def test_dev_log_file_is_plain_text(configured_env, workspace_root):
 
     content = log_files[0].read_text(encoding="utf-8")
     assert "test dev message" in content
-    assert not content.strip().startswith("{")  # مش JSON
+    assert not content.strip().startswith("{")
 
 
 def test_prod_log_file_is_json(configured_env, workspace_root):
@@ -34,7 +27,7 @@ def test_prod_log_file_is_json(configured_env, workspace_root):
     assert len(log_files) == 1
 
     first_line = log_files[0].read_text(encoding="utf-8").strip().splitlines()[0]
-    parsed = json.loads(first_line)  # لو مش JSON صحيح هيرمي exception ويفشل التست
+    parsed = json.loads(first_line)
     assert parsed["record"]["message"] == "test prod message"
 
 

@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from tesseractcli.models.exceptions import ConfigPackError, ConfigModelError
-from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
 from tesseractcli.config.global_config.manager import ConfigManager
+from tesseractcli.models.config_models.provider_models import ModelConfig, ModelPack
+from tesseractcli.models.exceptions import ConfigModelError, ConfigPackError
 
 # Used when the requested pack doesn't exist (e.g. an unconfigured
 # task name, or a typo) - "fast_main" is guaranteed to exist because

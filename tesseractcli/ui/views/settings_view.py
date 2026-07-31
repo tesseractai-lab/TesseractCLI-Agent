@@ -78,7 +78,7 @@ def _section(title: str, key: str, content: str) -> str:
     return f"{heading}\n[{body_color}]{content}[/{body_color}]"
 
 
-def render_settings(app: "TesseractApp") -> Any:
+def render_settings(app: TesseractApp) -> Any:
     settings = get_settings()
     manager = app.config_manager
     cfg = manager.config

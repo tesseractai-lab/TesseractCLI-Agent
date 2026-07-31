@@ -68,4 +68,4 @@ def test_write_file_metadata_contains_bytes_written(workspace_root: Path) -> Non
     result = write_file(workspace_root, path="notes.txt", content="hello")
 
     assert result.metadata is not None
-    assert result.metadata["bytes_written"] == len("hello".encode("utf-8"))
+    assert result.metadata["bytes_written"] == len(b"hello")

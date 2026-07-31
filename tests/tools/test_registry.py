@@ -7,12 +7,13 @@ tests/tools/test_registry.py
 على تفاصيل tool حقيقي زي write_file أو edit_file.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 from pydantic import BaseModel
 
-from tesseractcli.tools.registry import ToolRegistry
 from tesseractcli.models.tool_models import ToolResult
+from tesseractcli.tools.registry import ToolRegistry
 
 
 class _FakeArgs(BaseModel):

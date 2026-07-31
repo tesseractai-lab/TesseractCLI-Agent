@@ -1,6 +1,7 @@
 """tesseractcli/models/config_models/agent_models.py"""
 
 from __future__ import annotations
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

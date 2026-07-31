@@ -33,8 +33,9 @@ Three distinct things get traced, for three different reasons:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, TypeVar
+from typing import Any, TypeVar
 
 from tesseractcli.config.logger import logger
 from tesseractcli.config.settings import get_settings
@@ -42,8 +43,8 @@ from tesseractcli.config.settings import get_settings
 F = TypeVar("F", bound=Callable[..., Any])
 
 try:
-    from langsmith import traceable as _ls_traceable
     from langsmith import trace as _ls_trace
+    from langsmith import traceable as _ls_traceable
 
     _LANGSMITH_INSTALLED = True
 except ImportError:  # langsmith is an optional dependency

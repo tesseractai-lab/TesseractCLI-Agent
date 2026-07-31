@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.rate_limiters import InMemoryRateLimiter
-from pydantic import SecretStr
 from langchain_together import ChatTogether
+from pydantic import SecretStr
 
 from tesseractcli.llm.providers.base import BaseLLMProvider
 

@@ -145,7 +145,7 @@ HELP_TEXT = (
 )
 
 
-def _format_pack(name: str, pack: "ModelPack", *, color: str) -> str:
+def _format_pack(name: str, pack: ModelPack, *, color: str) -> str:
     """Each pack gets its own header color (cycled from `_PACK_PALETTE`
     by position, see `pack_color()`), and inside a pack, `pool` and
     `fallback` are their own color families (green / amber) so you can
@@ -200,7 +200,7 @@ def pack_color(index: int) -> str:
     return _PACK_PALETTE[index % len(_PACK_PALETTE)]
 
 
-def render_packs_overview(manager: "ConfigManager") -> Any:
+def render_packs_overview(manager: ConfigManager) -> Any:
     """Bordered panel listing every pack and the models inside it -
     this is the piece that was missing before: picking a pack used to
     be blind, with no way to see what's actually in it."""
@@ -215,7 +215,7 @@ def render_packs_overview(manager: "ConfigManager") -> Any:
     return render_box("Packs", body)
 
 
-def handle(manager: "ConfigManager", raw: str) -> Any:
+def handle(manager: ConfigManager, raw: str) -> Any:
     """Execute one settings-stage command and return a Rich renderable.
 
     Never raises: any `ConfigError` (bad pack/model/path, invalid
@@ -371,11 +371,11 @@ def handle(manager: "ConfigManager", raw: str) -> Any:
         return render_box("Error", f"[red]{exc}[/red]", style="red")
 
 
-def _backup_dir(manager: "ConfigManager") -> Path:
+def _backup_dir(manager: ConfigManager) -> Path:
     return manager.config_path.parent / "backups"
 
 
-def _render_raw_yaml(manager: "ConfigManager") -> Any:
+def _render_raw_yaml(manager: ConfigManager) -> Any:
     """Backs the read-only 'yaml'/'raw' command: dumps
     `global_config.yaml` exactly as it is on disk. Deliberately
     read-only - actual edits still go through `set`/`get` (dot-path,
@@ -397,7 +397,7 @@ def _render_raw_yaml(manager: "ConfigManager") -> Any:
     return render_box("global_config.yaml (read-only - use 'set'/'get' to edit)", body)
 
 
-def _list_backups(manager: "ConfigManager") -> str:
+def _list_backups(manager: ConfigManager) -> str:
     """Lists what `manager.backup()` has already written to disk
     (`<config_dir>/backups/`), newest first. `ConfigManager` has no
     listing method of its own - it only knows how to create one backup
@@ -416,7 +416,7 @@ def _list_backups(manager: "ConfigManager") -> str:
     return "[bold]Available backups (newest first)[/bold]\n" + "\n".join(lines)
 
 
-def _restore(manager: "ConfigManager", target: str) -> Any:
+def _restore(manager: ConfigManager, target: str) -> Any:
     """Copies a previously-created backup back over the active
     `global_config.yaml` and reloads it. Takes a fresh backup of the
     *current* (about-to-be-overwritten) file first, so restoring is

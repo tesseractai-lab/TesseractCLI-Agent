@@ -36,14 +36,14 @@ from typing import Any, Final
 import yaml
 from pydantic import ValidationError
 
+from tesseractcli.config.global_config.packs_manager import PacksManager
+from tesseractcli.config.global_config.paths_manager import PathAccessor
+from tesseractcli.models.config_models.global_config_models import GlobalConfig
 from tesseractcli.models.exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
     InvalidConfigError,
 )
-from tesseractcli.models.config_models.global_config_models import GlobalConfig
-from tesseractcli.config.global_config.packs_manager import PacksManager
-from tesseractcli.config.global_config.paths_manager import PathAccessor
 
 __all__ = ["ConfigManager"]
 
@@ -142,7 +142,7 @@ class ConfigManager:
             The cached :class:`~config.models.GlobalConfig` instance.
         """
         self._ensure_loaded()
-        assert self._config is not None  # noqa: S101 - guaranteed by _ensure_loaded
+        assert self._config is not None
         return self._config
 
     # ------------------------------------------------------------------
@@ -253,7 +253,7 @@ class ConfigManager:
             return self._validate_mapping(raw or {})
 
         self._ensure_loaded()
-        assert self._config is not None  # noqa: S101
+        assert self._config is not None
         return self._config
 
     def reset(self, *, keep_backup: bool = True) -> GlobalConfig:

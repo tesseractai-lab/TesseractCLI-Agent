@@ -4,15 +4,19 @@ tesseractcli/tools/write_file.py
 
 import time
 from pathlib import Path
-from typing import List
 
-from tesseractcli.models.tool_models import ToolResult, WriteFileMetadata, WriteFileArgs, SideEffect
 from tesseractcli.models.exceptions import (
     PathEscapesWorkspaceError,
     SensitiveFileBlocked,
 )
-from tesseractcli.tools.sandbox import safe_open, resolve_in_workspace, atomic_write
+from tesseractcli.models.tool_models import (
+    SideEffect,
+    ToolResult,
+    WriteFileArgs,
+    WriteFileMetadata,
+)
 from tesseractcli.tools.registry import ToolRegistry
+from tesseractcli.tools.sandbox import atomic_write, resolve_in_workspace, safe_open
 
 
 def write_file(
@@ -23,7 +27,7 @@ def write_file(
 ) -> ToolResult:
 
     started = time.monotonic()
-    side_effects: List[SideEffect] = []
+    side_effects: list[SideEffect] = []
     metadata: WriteFileMetadata = {"path": path, "mode": mode}
 
     try:

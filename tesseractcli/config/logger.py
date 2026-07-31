@@ -22,7 +22,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from .settings import get_settings, EnvFileMode
+from .settings import EnvFileMode, get_settings
 
 settings = get_settings()
 
@@ -99,4 +99,4 @@ else:
         encoding="utf-8",
     )
 
-__all__ = ["logger", "LOGS_ROOT", "IS_DEV"]
+__all__ = ["IS_DEV", "LOGS_ROOT", "logger"]
