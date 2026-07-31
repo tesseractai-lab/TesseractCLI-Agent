@@ -6,23 +6,28 @@ on:
   pull_request:
     branches: [main]
 
-# لو حصل push جديد على نفس الـ PR وهو لسه شغال، بيلغي الـ run القديم
-# بدل ما يفضل شغال في الفاضي ويستهلك minutes
+# If a new commit is pushed to the same PR while a workflow is still running,
+# cancel the previous run to avoid wasting CI time and GitHub Actions minutes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.11" # pyproject.toml مقفول على 3.11 بس (>=3.11,<3.12)
+  # The project targets Python 3.11 only (see pyproject.toml: >=3.11,<3.12)
+  PYTHON_VERSION: "3.11"
 
 jobs:
   # ============================================================
-  # Job 1: Lint — بيفشل بسرعة لو الكود فيه مشاكل style/syntax
-  # قبل ما نضيع وقت في الـ test matrix البطيء
+  # Job 1: Lint
+  #
+  # Fast quality gate. Fail immediately if the code has style,
+  # formatting, or syntax issues before spending time on the
+  # slower type checking and test matrix.
   # ============================================================
   lint:
     name: Lint (ruff)
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,19 +43,23 @@ jobs:
       - name: Sync dependencies
         run: uv sync --group dev
 
-      - name: ruff check (lint rules)
+      - name: Run Ruff lint checks
         run: uv run ruff check .
 
-      - name: ruff format --check (style only, no auto-fix)
+      - name: Verify formatting
         run: uv run ruff format --check .
 
   # ============================================================
-  # Job 2: Type-check — منفصل عن lint لأنه بياخد وقت مختلف ومسؤوليته
-  # مختلفة (type correctness مش style)
+  # Job 2: Type Checking
+  #
+  # Kept separate from lint because it serves a different purpose.
+  # Lint verifies code quality/style, while mypy validates static
+  # type correctness.
   # ============================================================
   type-check:
     name: Type-check (mypy)
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,22 +75,34 @@ jobs:
       - name: Sync dependencies
         run: uv sync --group dev
 
-      - name: mypy
+      - name: Run mypy
         run: uv run mypy tesseractcli
 
   # ============================================================
-  # Job 3: Test — الجزء الأهم. Matrix على 3 أنظمة تشغيل مختلفة
-  # لأن tools/sandbox/ بيتعامل مع filesystem paths وcommand execution
-  # واللي بيختلف فعليًا بين Linux/macOS/Windows (مش مجرد اختلاف شكلي)
+  # Job 3: Tests
+  #
+  # Execute the full test suite across multiple operating systems.
+  # This is especially important because filesystem behavior,
+  # path handling, process execution, and shell semantics differ
+  # between Linux, macOS, and Windows.
   # ============================================================
   test:
     name: Test (${{ matrix.os }})
-    needs: [lint, type-check] # ما ينفعش نضيع وقت الـ matrix لو الكود أصلاً معطوب
+    needs: [lint, type-check]
+
     strategy:
-      fail-fast: false # لو فشل نظام واحد، سيب الباقي يكمل عشان تشوف الصورة كاملة
+      # Continue running the remaining platforms even if one fails,
+      # so all platform-specific issues are visible in a single run.
+      fail-fast: false
+
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,11 +117,17 @@ jobs:
 
       - name: Sync dependencies
         run: uv sync --group dev
+
+      # Tests expect a local .env file. Use the example configuration
+      # so CI has a predictable environment.
+      - name: Create test environment
+        run: cp .env.example .env
 
       - name: Run test suite
         run: uv run pytest -v --tb=short
 
-      # ملاحظة: لو حبيت تفصل sandbox tests في step لوحده عشان توضح
-      # فشلها بشكل منفصل عن باقي التيست سويت، استخدم:
+      # Optional:
+      # If sandbox-related tests become large enough, consider running
+      # them in a dedicated step so failures are easier to identify.
+      #
       # uv run pytest tests/tools -v
-      # لكن سيبتها في step واحد هنا عشان مفيش داعي لتعقيد إضافي دلوقتي
