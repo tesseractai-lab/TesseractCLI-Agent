@@ -1,0 +1,76 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # كل اتنين الساعة 6 صباحًا UTC — عشان تمسك vulnerabilities جديدة
+    # اتكشفت في dependency موجود بالفعل، حتى لو مفيش كود جديد اتغير
+    - cron: "0 6 * * 1"
+
+jobs:
+  # ============================================================
+  # Static analysis (bandit) — بيدور على coding patterns خطرة
+  # (eval, subprocess بدون sanitization, shell=True, إلخ)
+  # تركيز خاص على tools/sandbox و tools اللي بتنفذ أوامر،
+  # لأن دول أخطر أجزاء المشروع أمنيًا
+  # ============================================================
+  static-analysis:
+    name: Static analysis (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      # uvx بيشغل الأداة في بيئة معزولة من غير ما تضيفها لـ pyproject.toml
+      # أصلاً — مناسب لأداة زي bandit اللي مش dependency فعلية للمشروع
+      - name: Full-package scan (informational)
+        run: uvx bandit -r tesseractcli -f screen
+        continue-on-error: true # مش بيوقف الـ CI، بس بيبان في اللوج
+
+      - name: Sandbox / exec-tool scan (blocking)
+        # هنا الفشل بيوقف الـ job فعلاً — دول الملفات اللي المفروض
+        # منزلوش عن أي بار أمني
+        run: |
+          uvx bandit -r \
+            tesseractcli/tools/sandbox \
+            tesseractcli/tools/exec_tool.py \
+            -ll
+
+  # ============================================================
+  # Dependency vulnerability scan (pip-audit)
+  # بيتأكد إن مفيش نسخة من مكتبة (LangChain وفروعها، pydantic، إلخ)
+  # فيها CVE معروفة
+  # ============================================================
+  dependency-audit:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install "3.11"
+
+      - name: Sync dependencies
+        run: uv sync --group dev
+
+      # uv export بيحول uv.lock (أو الـ resolved deps) لـ requirements.txt
+      # عادي، عشان pip-audit يقدر يفهمه — pip-audit مش بيفهم uv's format مباشرة
+      - name: Export resolved dependencies
+        run: uv export --no-hashes --format requirements-txt -o requirements-audit.txt
+
+      - name: Run pip-audit
+        run: uvx pip-audit -r requirements-audit.txt

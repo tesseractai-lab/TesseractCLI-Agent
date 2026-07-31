@@ -221,10 +221,12 @@ __marimo__/
 draft/
 docs/
 tesseractcli.egg-info/
-.github
 .env.*
 !.env.example
 !.env.dev.example
 !.env.prod.example
 .vscode/*
 app_config/*
+.github/*
+!.github/workflows/
+!.github/workflows/*

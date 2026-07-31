@@ -1,0 +1,112 @@
+name: Release
+
+# بيشتغل بس لما تعمل push لـ tag شكله v* (زي v0.9.0-beta, v1.0.0)
+# مش على كل push عادي — عشان ده بناء نسخة رسمية، مش كل commit
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ============================================================
+  # بناء الـ package + التأكد إنه فعلًا قابل للـ install وشغال
+  # على الـ 3 أنظمة. بما إن الأداة local-run (مش hosted)، دي أهم
+  # حاجة: إن أي حد يعمل pip install على أي نظام يشتغل معاه صح
+  # ============================================================
+  build-and-verify:
+    name: Build & smoke test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # bash موحّد على الـ 3 أنظمة (حتى على Windows) عشان الـ glob
+        # بتاع dist/*.whl يشتغل بنفس الشكل - على cmd/PowerShell
+        # مش هيتحل تلقائي
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Install the built wheel in a clean venv
+        run: |
+          uv venv smoke-test-env
+          source smoke-test-env/bin/activate 2>/dev/null || source smoke-test-env/Scripts/activate
+          uv pip install dist/*.whl
+
+      - name: Smoke test — entry point actually runs
+        run: |
+          source smoke-test-env/bin/activate 2>/dev/null || source smoke-test-env/Scripts/activate
+          tesseract --help
+
+      # الـ wheel نفسه هيبقى نفس الملف على الـ 3 أنظمة (pure-python)،
+      # فبنرفعه مرة واحدة بس من ubuntu كـ artifact مشترك للـ job اللي بعده
+      - name: Upload build artifacts (once)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # ============================================================
+  # نشر GitHub Release مع إرفاق الـ wheel/sdist كـ assets
+  # عشان اللي مش عايز يستخدم PyPI يقدر يحمل الملف مباشرة
+  # ويعمل: pip install tesseractcli-x.y.z-py3-none-any.whl
+  # ============================================================
+  publish-github-release:
+    name: Publish GitHub Release
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # لازم للسماح بإنشاء Release وإرفاق ملفات عليه
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create GitHub Release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  # ============================================================
+  # PyPI publish — متسيب معلقة (commented) لحد ما تقرر:
+  # هل عايز الأداة تتنصب بـ "pip install tesseractcli" من غير ما
+  # حد يزور الـ GitHub Release أصلًا؟ لو آه، فك التعليق وضيف
+  # trusted publishing من إعدادات PyPI (من غير API key يتخزن كـ secret)
+  # ============================================================
+  # publish-pypi:
+  #   name: Publish to PyPI
+  #   needs: build-and-verify
+  #   runs-on: ubuntu-latest
+  #   environment: pypi
+  #   permissions:
+  #     id-token: write  # مطلوب لـ trusted publishing
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - uses: pypa/gh-action-pypi-publish@release/v1
