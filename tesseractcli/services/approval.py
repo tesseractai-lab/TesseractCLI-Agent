@@ -45,7 +45,9 @@ class ApprovalService:
         once, so overlapping requests would indicate a real bug
         upstream rather than something to silently queue."""
         if self._event is not None:
-            raise RuntimeError("ApprovalService.request() called while a request is pending")
+            raise RuntimeError(
+                "ApprovalService.request() called while a request is pending"
+            )
         self.pending_tool = tool_name
         self.pending_args = tool_args
         self._event = asyncio.Event()
