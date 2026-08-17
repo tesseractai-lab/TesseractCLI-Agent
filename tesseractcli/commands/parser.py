@@ -33,7 +33,6 @@ from .types import (
     InlineWorkspaceSwitch,
     MetaCommand,
     NavCommand,
-    NavTarget,
     ReloadCommand,
     ResetCommand,
     SettingsCommand,
@@ -142,7 +141,7 @@ def _is_confirm(text: str) -> bool:
     return text.strip().lower() in ("y", "yes")
 
 
-def parse(text: str, stage: str) -> Command:  # noqa: PLR0911, PLR0912 - grammar dispatch
+def parse(text: str, stage: str) -> Command:
     """The single entry point. `text` is the raw (already-stripped by
     the caller is NOT assumed - parse() strips internally) input;
     `stage` is `SessionController.stage` at the moment of submission.
@@ -177,12 +176,14 @@ def parse(text: str, stage: str) -> Command:  # noqa: PLR0911, PLR0912 - grammar
 
     if head_probe in RESET_HEADS and len(words_probe) <= 2:
         return ResetCommand(
-            scope=words_probe[1].lower() if len(words_probe) == 2 else None, text=stripped
+            scope=words_probe[1].lower() if len(words_probe) == 2 else None,
+            text=stripped,
         )
 
     if head_probe in RELOAD_HEADS and len(words_probe) <= 2:
         return ReloadCommand(
-            scope=words_probe[1].lower() if len(words_probe) == 2 else None, text=stripped
+            scope=words_probe[1].lower() if len(words_probe) == 2 else None,
+            text=stripped,
         )
 
     global_cmd = GLOBAL_ALIASES.get(stripped.lower())

@@ -211,6 +211,11 @@ RenderKind = Literal[
     "set_input_value",  # pre-fill #main-input - content: str
     "remove_echo",  # remove a previously-echoed line by id - content: str (id)
     "error",  # rendered error box - content: dict(title, exc, user_text)
+    "render_settings",  # draw the settings screen - content: None
+    "render_home",  # draw the home screen - content: None
+    "render_help",  # draw the help table - content: None
+    "copy_to_clipboard",  # push text to the system clipboard - content: str
+    "exit",  # quit the app - content: None
 ]
 
 
