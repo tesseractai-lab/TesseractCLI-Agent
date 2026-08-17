@@ -13,14 +13,15 @@ holds the current `WizardState` and passes it back in on every step.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from tesseractcli.config.provider_catalog import PROVIDER_CATALOG
 from tesseractcli.models.exceptions import ConfigError
 
-WizardStep = Literal[
-    "provider", "model", "model_custom", "pack", "pack_new", "target"
-]
+if TYPE_CHECKING:
+    from tesseractcli.config.global_config.manager import ConfigManager
+
+WizardStep = Literal["provider", "model", "model_custom", "pack", "pack_new", "target"]
 
 
 @dataclass(frozen=True)
@@ -76,11 +77,15 @@ class PackWizard:
     """Pure orchestration: talks to `ConfigManager.packs` only inside
     `commit()`, everything else is in-memory state transitions."""
 
-    def __init__(self, config_manager) -> None:  # type: ignore[no-untyped-def]
+    def __init__(self, config_manager: ConfigManager) -> None:
         self._config_manager = config_manager
 
-    def start(self, *, activate: bool = False, return_stage: str = "settings") -> WizardPrompt:
-        state = WizardState(step="provider", activate=activate, return_stage=return_stage)
+    def start(
+        self, *, activate: bool = False, return_stage: str = "settings"
+    ) -> WizardPrompt:
+        state = WizardState(
+            step="provider", activate=activate, return_stage=return_stage
+        )
         choices = [
             WizardChoice(
                 label=f"{e.provider:<14} {e.label} — e.g. {', '.join(e.example_models)}",
@@ -94,7 +99,9 @@ class PackWizard:
         state = replace(state, step="model", provider=provider)
         entry = next(e for e in PROVIDER_CATALOG if e.provider == provider)
         choices = [WizardChoice(label=m, value=m) for m in entry.example_models]
-        choices.append(WizardChoice(label="type a different model id…", value="__custom__"))
+        choices.append(
+            WizardChoice(label="type a different model id…", value="__custom__")
+        )
         return WizardPrompt(
             state=state, prompt=f"Pick a model ({entry.label})", choices=choices
         )
@@ -160,7 +167,9 @@ class PackWizard:
             )
             self._config_manager.save()
         except ConfigError as exc:
-            return WizardResult(ok=False, return_stage=state.return_stage, error=str(exc))
+            return WizardResult(
+                ok=False, return_stage=state.return_stage, error=str(exc)
+            )
         return WizardResult(
             ok=True,
             provider=state.provider,
