@@ -7,6 +7,7 @@ from sqlalchemy import CheckConstraint, DateTime, Index, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tesseractcli.memory.schema.base import Base
+from tesseractcli.models.memory.session_status import SessionStatus
 
 if TYPE_CHECKING:
     from tesseractcli.memory.schema.memory_nodes import MemoryNode
@@ -47,7 +48,7 @@ class Sessions(Base):
     status: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        server_default=text("'ACTIVE'"),
+        server_default=text(f"'{SessionStatus.ACTIVE.value}'"),
     )
 
     messages: Mapped[list[Messages]] = relationship(
